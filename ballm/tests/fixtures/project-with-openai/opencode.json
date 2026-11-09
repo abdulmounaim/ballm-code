@@ -1,0 +1,11 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "providers": {
+    "openai": {
+      "package": "@opencode/ai/providers/openai",
+      "settings": {
+        "apiKey": "sk-test-not-real"
+      }
+    }
+  }
+}

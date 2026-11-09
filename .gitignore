@@ -39,3 +39,11 @@ tsconfig.tsbuildinfo
 
 # Legal drafts pending review are kept outside the repository; never copy them in.
 legal-drafts-private/
+# Ballm-specific local files
+ballm/backend/node_modules/
+ballm/backend/.env
+ballm/backend/*.db
+ballm/backend/*.db-shm
+ballm/backend/*.db-wal
+ballm/dist/
+ballm/**/dist/

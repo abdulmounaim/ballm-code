@@ -1,0 +1,7 @@
+# Pinned upstream base for this fork. Update with ballm/distro/scripts/sync-upstream.sh.
+remote=https://github.com/anomalyco/opencode.git
+branch=dev
+version=2.2.5
+bun=1.4.4
+commit=2f0e2dbbff4b271b122399b89a1d8965c2a40fe0
+synced=2026-11-09

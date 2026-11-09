@@ -1,0 +1,37 @@
+name: ballm-verify
+
+on:
+  push:
+    branches: [internal/main, internal/dev]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+
+      - name: Install root dependencies
+        run: bun install
+
+      - name: Install control-plane dependencies
+        working-directory: ballm/backend
+        run: bun install
+
+      - name: Control-plane tests
+        working-directory: ballm/backend
+        run: bun test
+
+      - name: Core typecheck
+        working-directory: packages/core
+        run: bun typecheck
+
+      - name: Managed policy parses
+        run: |
+          for file in ballm/managed/linux/opencode.jsonc ballm/managed/windows/opencode.jsonc; do
+            bun -e "JSON.parse((await Bun.file('$file').text()).replace(/^\s*\/\/.*$/gm, ''))"
+          done

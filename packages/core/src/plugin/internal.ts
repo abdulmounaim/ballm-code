@@ -105,6 +105,7 @@ import { PlanPlugin } from "./plan.js"
 import { GoalPlugin } from "./goal.js"
 import { ModelsDevPlugin } from "./models-dev.js"
 import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
+import { BallmPlugin } from "../ballm/index.js"
 import { ProviderPlugins } from "./provider.js"
 import { DynamicProviderPlugin } from "./provider/dynamic.js"
 import { OpencodePlugin } from "./provider/opencode.js"
@@ -304,9 +305,13 @@ const post = [
   ConfigPolicyPlugin.Plugin,
 ] as const satisfies readonly InternalPlugin[]
 
-// Repository config must not switch off policy enforcement or the Console connection that delivers
-// organization statements, so plugin remove operations skip these IDs.
-export const guarded: ReadonlySet<string> = new Set([OpencodePlugin.id, ConfigPolicyPlugin.Plugin.id])
+// Repository config must not switch off policy enforcement, the Ballm connection, or the Console
+// connection that delivers organization statements, so plugin remove operations skip these IDs.
+export const guarded: ReadonlySet<string> = new Set([
+  BallmPlugin.id,
+  OpencodePlugin.id,
+  ConfigPolicyPlugin.Plugin.id,
+])
 
 export const list = Effect.fn("PluginInternal.list")(function* () {
   // Capture only services; activation supplies the child Scope and batching context.

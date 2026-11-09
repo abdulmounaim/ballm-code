@@ -1,0 +1,16 @@
+export const product = {
+  name: "Ballm Code",
+  integrationID: "ballm",
+  providerID: "ballm",
+  clientID: "ballm-cli",
+  methodID: "device",
+  package: "@opencode/ai/providers/openai-compatible",
+  defaultServer: "https://code.ballm.internal",
+  envServer: "BALLM_SERVER",
+  userAgent: "ballm-code/0.1.0",
+  serverMetadataKey: "server",
+  orgMetadataKey: "orgID",
+  orgNameMetadataKey: "orgName",
+  accountMetadataKey: "accountID",
+  emailMetadataKey: "email",
+} as const
