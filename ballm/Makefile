@@ -20,7 +20,8 @@ test:
 typecheck:
 	cd $(ROOT)/packages/core && $(BUN) typecheck
 
-verify: typecheck test
+verify:
+	./distro/scripts/verify.sh
 
 build-cli:
 	./distro/scripts/build-cli.sh
