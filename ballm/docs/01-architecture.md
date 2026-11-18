@@ -3,37 +3,109 @@
 ## Components
 
 ```text
-+---------------------+          device flow          +----------------------+
-|  Ballm Code client  | <----------------------------> |  Ballm control plane |
-|  (TUI / desktop)    |                                |  /auth/device/*      |
-|                     |          remote config         |  /api/v2/config      |
-|  BallmPlugin        | <----------------------------> |  /api/user, /api/orgs|
-|  - OAuth            |                                +----------+-----------+
-|  - remote config    |                                           |
-|  - provider wiring  |          inference                          |
-|                     | -----------------------------> +-----------v-----------+
-+---------------------+                                |  Ballm LLM gateway    |
-                                                       |  /v1/* -> upstream    |
-                                                       +----------------------+
+                         browser / SSO (OIDC)
+                                  │
+                                  ▼
+┌──────────────────┐      ┌──────────────────────┐
+│ Ballm Code       │      │ Control plane        │
+│ TUI / desktop    │─────▶│ /auth/device/*       │
+│                  │      │ /auth/sso/*          │
+│ BallmPlugin      │      │ /api/v2/config       │
+│ - device login   │      │ /api/v1/admin/*      │
+│ - remote config  │      │ /.well-known/jwks    │
+│ - provider wiring│      └──────┬───────────────┘
+└────────┬─────────┘             │ writes
+         │ inference             ▼
+         │                ┌──────────────┐
+         │                │ PostgreSQL   │
+         │                │ primary +    │
+         │                │ replicas     │
+         │                └──────┬───────┘
+         │                       │ reads
+         ▼                       ▼
+┌──────────────────────┐  ┌──────────────┐
+│ Gateway              │◀─│ Redis/Valkey │
+│ JWT verify           │  │ cache, rate  │
+│ org model allowlist  │  │ limit, revoke│
+│ proxy + usage        │  └──────────────┘
+└──────────┬───────────┘
+           ▼
+     Ballm upstream
 ```
+
+## Services
+
+**Control plane** owns writes, identity, and policy:
+
+- device authorization and token rotation;
+- OIDC authorization-code + PKCE, browser sessions, device approval;
+- users, organizations, memberships, SSO connections;
+- remote client config, org model allowlists, delivered policy;
+- admin API for orgs, members, models, policies, SSO, and upstream settings;
+- JWKS for access-token verification.
+
+**Gateway** owns the inference path:
+
+- local JWT verification with the control plane's public key or JWKS;
+- revoked-session check through Redis;
+- organization model allowlist cache;
+- request rewrite from Ballm model IDs to upstream IDs;
+- upstream API key injection;
+- rate limiting and usage recording;
+- streaming pass-through and SSE usage capture.
+
+Both services are stateless and can run as many replicas as needed.
 
 ## Client request path
 
 1. `BallmPlugin` registers integration `ballm` with a device OAuth method.
-2. The user runs `opencode auth login` (or the TUI integration dialog) and approves the code in a
-   browser.
-3. The credential stores access, refresh, expiry, and `orgID` metadata.
-4. The plugin fetches `/api/v2/config` with the access token and `X-Org-Id`.
-5. The response is wrapped as an integration config document and applied through
+2. The user runs `opencode auth login` (or the TUI integration dialog) and opens the approval URL.
+3. `/device` resolves the user's organization from their email domain and starts OIDC.
+4. The callback creates the user/membership and approves the device code.
+5. The client polls `/auth/device/token` and receives a JWT + rotating refresh token.
+6. The plugin fetches `/api/v2/config` with the access token and `X-Org-Id`.
+7. The response is wrapped as an integration config document and applied through
    `ConfigProviderPlugin.integrate`.
-6. The provider record is bound to the connection. While signed out, no Ballm provider exists.
-7. Inference uses the provider's base URL. `model-resolver.ts` injects the OAuth access token as the
+8. Inference goes to the gateway. `model-resolver.ts` injects the access token as the
    OpenAI-compatible `apiKey`; refresh is handled by the credential service.
+
+## Auth
+
+- Access tokens are Ed25519 JWTs with `sub`, `org`, `sid`, `jti`, `iss`, `aud`, and `exp`.
+- The control plane signs; the gateway verifies locally. Key rotation uses `kid` and JWKS.
+- Refresh tokens are opaque, stored as SHA-256 hashes, rotate on every use, and revoke the family on
+  reuse.
+- Access TTL defaults to five minutes. Session revocation writes `ballm:revoked:<sid>` to Redis and
+  marks the session revoked in Postgres.
+
+## Data
+
+- PostgreSQL is the durable source of truth.
+- `audit_events` and `usage_events` are partitioned by month; the migration runner creates the
+  current and next two partitions, with a DEFAULT partition for safety.
+- Redis caches org catalogs, rate-limit counters, and revocations. It is optional for a single
+  replica but required for global limits and immediate multi-replica revocation.
+- SSO client secrets and per-org upstream keys are sealed with AES-256-GCM.
+
+## Multi-region
+
+```text
+region A: control plane + gateway + Redis + Postgres primary
+region B: gateway + Redis + Postgres read replica
+region C: gateway + Redis + Postgres read replica
+```
+
+- All writes go to the primary; gateways read from regional replicas.
+- JWT verification is local, so auth adds no cross-region hop.
+- Catalog changes publish `ballm:invalidate`; gateways clear local and Redis caches.
+- Rate limits are per region unless Redis is replicated globally.
+- Revocation is immediate in the region that handled it and bounded by the access TTL elsewhere
+  unless the revocation cache is replicated.
 
 ## Why a fork
 
-Upstream already supports integrations and remote config, so most behavior is a plugin. The fork is
-needed to:
+Upstream already supports integrations and remote config, so most client behavior is a plugin. The
+fork is needed to:
 
 - compile the plugin into the binary so a user cannot disable it;
 - add it to the guarded plugin set and remove the upstream Console provider;
@@ -43,14 +115,12 @@ needed to:
 
 ## Repository boundaries
 
-- `packages/core/src/ballm/` is the only runtime code added to upstream. It depends on existing core
-  services and should not require changes to other packages.
-- `ballm/backend/` is a separate deployable with its own dependency tree and lockfile.
+- `packages/core/src/ballm/` is the only runtime client code added to upstream.
+- `ballm/backend/` is the platform: `packages/platform`, `services/control-plane`,
+  `services/gateway`, migrations, Helm.
 - `ballm/managed/`, `ballm/distro/`, and `ballm/docs/` are packaging and operations artifacts.
 
-## State and storage
+## Client storage
 
-- Client credentials live in OpenCode's credential store (SQLite under the OpenCode data directory).
-- Gateway tokens are opaque; only their SHA-256 hashes are stored server-side.
-- Refresh tokens rotate on every use.
-- Audit rows record sign-in, refresh, config reads, and gateway requests.
+Client credentials remain in OpenCode's credential store. The backend never receives the refresh
+cookie; it only sees refresh-token grants from the CLI or desktop client.

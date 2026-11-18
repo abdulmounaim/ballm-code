@@ -7,6 +7,16 @@ pinned base in `upstream.lock`.
 
 ### Added
 
+- PostgreSQL platform backend split into a control plane and gateway, with a shared platform package.
+- OIDC SSO with PKCE, per-organization SSO connections, group-to-role mapping, and browser sessions.
+- Multi-org data model: organizations, memberships, per-org model catalogs, policies, and upstream
+  credentials.
+- Ed25519 JWT access tokens, JWKS, rotating refresh tokens with reuse detection, and Redis-backed
+  revocation.
+- Admin API for orgs, members, models, policies, SSO, and upstream configuration.
+- Gateway rate limiting, model rewriting, streaming pass-through, SSE usage capture, and partitioned
+  audit/usage tables.
+- Docker Compose stack and a Helm chart for on-prem/Kubernetes, including a migration Job.
 - `make -C ballm brand-audit` and `ballm/distro/scripts/brand-audit.ts`: enforce Ballm app IDs,
   update feeds, deep links, generated icons, shell titles, and managed-policy statements.
 - Project layout under `ballm/` with backend, managed policy, distro, docs, and tests.
@@ -20,6 +30,11 @@ pinned base in `upstream.lock`.
 
 ### Changed
 
+- The SQLite backend was replaced by PostgreSQL. The old single-process server is gone; the client
+  contract is unchanged.
+- The control plane is the only writer; gateways read from regional replicas and validate JWTs
+  locally.
+- SSO secrets and per-org upstream keys are encrypted with AES-256-GCM at rest.
 - The upstream OpenCode Console provider is no longer registered in the Ballm build; the Ballm
   integration replaces it, and only Ballm plus policy enforcement are guarded.
 - Desktop identity is now `Ballm Code` / `com.ballm.code`, with `ballm://` deep links and

@@ -4,7 +4,8 @@ Ballm Code is the internal, opinionated distribution of [OpenCode](https://githu
 It keeps OpenCode's agent, TUI, and desktop app, but replaces the model and account layer with the Ballm
 control plane:
 
-- users link their client with browser device-code OAuth;
+- users link their client through browser device authorization backed by their organization's OIDC
+  identity provider;
 - the only usable model provider is the Ballm gateway;
 - model catalogs, remote MCP servers, and organization policies are delivered by the backend;
 - managed policy files make the Ballm-only configuration survive user and project config.
@@ -18,7 +19,7 @@ monorepo, kept as close to upstream as possible so upgrades stay cheap.
 | --- | --- |
 | `packages/schema/src/brand.ts` | Single source for product name, app ID, URLs, feeds |
 | `packages/core/src/ballm/` | Client integration: OAuth, remote config, provider wiring |
-| `ballm/backend/` | Independently deployable control plane and gateway |
+| `ballm/backend/` | PostgreSQL platform: control plane, gateway, migrations, Helm |
 | `ballm/managed/` | Managed policy files for Linux, macOS, and Windows |
 | `ballm/distro/` | Branding source, icon generator, installers, build/release scripts |
 | `ballm/docs/` | Architecture, backend contract, enforcement, release, runbook |
@@ -29,15 +30,18 @@ monorepo, kept as close to upstream as possible so upgrades stay cheap.
 ```sh
 # from the repository root
 make -C ballm bootstrap     # install root, backend, and distro dependencies
-make -C ballm backend       # start the control plane on :8787
+cd ballm/backend && bun run keys   # Ed25519 keys + encryption key for .env
+make -C ballm compose-up    # Postgres, Redis, migrations, control plane, gateway
 make -C ballm dev           # start the Ballm Code TUI against this checkout
 ```
 
-In the TUI, connect the `Ballm` integration. The device-flow URL is served by the local control plane.
-For local development, approve the code at `http://localhost:8787/device` or call
-`POST /auth/device/approve` directly.
+In the TUI, connect the `Ballm` integration. The approval page is served by the control plane at
+`http://localhost:8787/device`; it resolves the organization from the work email and hands off to
+SSO. For local development, configure an OIDC connection through the admin API, or enable
+`BALLM_DEV_AUTH=1` and use `POST /auth/dev/login`.
 
-See `docs/05-development.md` for prerequisites, environment variables, and test commands.
+See `docs/05-development.md` for prerequisites, environment variables, SSO setup, and test commands.
+The platform itself is documented in `ballm/backend/README.md`.
 
 ## Branding
 
@@ -67,7 +71,8 @@ small registration points in `packages/` unless the change is intentional and do
 
 ## Status
 
-- Backend device flow, token rotation, remote config, and gateway: implemented and tested.
+- Platform: separate control plane and gateway, PostgreSQL, Redis, JWT access tokens, rotating
+  refresh tokens, multi-org SSO, admin API, usage recording, Docker Compose, Helm.
 - Client integration and provider routing: implemented and tested end to end.
 - Managed policy: implemented.
 - Desktop/web/TUI branding: implemented with placeholder art and enforced by `make -C ballm brand-audit`.
