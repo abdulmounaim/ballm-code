@@ -70,6 +70,8 @@ small registration points in `packages/` unless the change is intentional and do
 - Backend device flow, token rotation, remote config, and gateway: implemented and tested.
 - Client integration and provider routing: implemented and tested end to end.
 - Managed policy: implemented.
-- Desktop/web/TUI branding: implemented with placeholder art.
+- Desktop/web/TUI branding: implemented with placeholder art and enforced by `make -C ballm brand-audit`.
+- Provider surface: Ballm is the only registered account provider; the upstream Console plugin is not
+  part of the build.
 - Signed macOS/Windows/Linux release: workflow and configuration ready; certificates, update host, and
   final art are external inputs.

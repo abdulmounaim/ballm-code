@@ -41,8 +41,11 @@ required for the integration document to load.
 
 ## Guarded plugin
 
-`BallmPlugin.id` is added to the guarded set in `packages/core/src/plugin/internal.ts`. Configuration
-plugin removals cannot disable it, just as a repository cannot disable policy enforcement.
+`BallmPlugin.id` is added to the guarded set in `packages/core/src/plugin/internal.ts` alongside
+`opencode.config.policy`. Configuration plugin removals cannot disable either one.
+
+The upstream OpenCode Console provider plugin is not registered in this build. The Ballm integration
+replaces it, so there is no second built-in account provider to disable or fall back to.
 
 ## What is not enforceable locally
 

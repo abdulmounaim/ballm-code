@@ -36,7 +36,7 @@ Upstream already supports integrations and remote config, so most behavior is a 
 needed to:
 
 - compile the plugin into the binary so a user cannot disable it;
-- add it to the guarded plugin set;
+- add it to the guarded plugin set and remove the upstream Console provider;
 - brand the CLI and desktop app;
 - point updates at Ballm-controlled artifacts;
 - ship managed policy through the installer.
