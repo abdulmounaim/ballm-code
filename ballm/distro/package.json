@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "icons": "bun run scripts/icons.ts"
+    "icons": "bun run scripts/icons.ts",
+    "brand-audit": "bun run scripts/brand-audit.ts"
   },
   "dependencies": {
     "@resvg/resvg-js": "2.6.2",

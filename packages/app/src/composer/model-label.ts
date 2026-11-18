@@ -1,3 +1,4 @@
+import { Brand } from "@opencode/schema/brand"
 import { consoleProviderGroup, consoleProviderName } from "@/providers/catalog/console"
 
 export type ComposerModelLabel = { provider?: string; model: string }
@@ -43,7 +44,7 @@ export function composerProviderName(
       (item.integrationID ?? item.id) === provider.canonical,
   )
 
-  return direct ? `OpenCode / ${name}` : name
+  return direct ? `${Brand.name} / ${name}` : name
 }
 
 export function composerModelLabels(

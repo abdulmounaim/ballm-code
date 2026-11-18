@@ -44,12 +44,13 @@ See `docs/05-development.md` for prerequisites, environment variables, and test 
 The desktop, web, TUI, and installer read from `packages/schema/src/brand.ts`.
 
 ```sh
-cd ballm/distro
-bun run icons
+make -C ballm icons
+make -C ballm brand-audit
 ```
 
 Source art lives in `ballm/distro/branding/source/`. The current files are deliberately marked
-placeholders; replace them and rerun the generator.
+placeholders; replace them and rerun the generator. The brand audit fails if a packaged identity,
+update feed, icon, or managed-policy statement drifts from the Ballm-owned values.
 
 ## Upstream
 

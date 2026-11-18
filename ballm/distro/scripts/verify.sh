@@ -27,4 +27,7 @@ for file in ballm/managed/linux/opencode.jsonc ballm/managed/windows/opencode.js
   bun -e "const text = await Bun.file('$file').text(); JSON.parse(text.replace(/^\\s*\\/\\/.*$/gm, '')); console.log('ok $file')"
 done
 
+echo "== brand audit =="
+(cd ballm/distro && bun run brand-audit)
+
 echo "verify complete"

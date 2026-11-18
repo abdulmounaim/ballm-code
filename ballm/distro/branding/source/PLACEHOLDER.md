@@ -1,19 +1,20 @@
 # Placeholder brand assets
 
-These are deliberately temporary. They exist so the desktop, CLI, installer, and release pipeline
-can be built and reviewed before design delivers final artwork.
+These files are deliberately temporary. They exist so the desktop, CLI, installer, and release
+pipeline can be built and reviewed before design delivers final artwork.
 
-Replace these files, then run:
+Replace them, then regenerate the derived assets:
 
 ```sh
-cd ballm/distro
-bun run icons
+make -C ballm icons
+make -C ballm brand-audit
 ```
 
-Files design should provide:
+Design should provide:
 
-- `source/mark.svg` — square app mark, single color plus optional background
-- `source/wordmark.svg` — horizontal wordmark, `currentColor`
+- `source/mark.svg` — square app mark, single color plus transparent background
+- `source/wordmark.svg` — horizontal wordmark using `currentColor`
 - `source/app-icon.svg` — 1024×1024 app icon with background
 
-The generated outputs land in `packages/desktop/icons/{dev,prod}` and `packages/app/public`.
+Generated outputs land in `packages/desktop/icons/{dev,beta,prod}`, `packages/desktop/resources/icons`,
+`packages/ui/src/assets`, and `packages/app/public`.

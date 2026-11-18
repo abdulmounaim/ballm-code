@@ -1,3 +1,4 @@
+import { Match } from "effect"
 import { Brand } from "@opencode/schema/brand"
 import { resolveChannel } from "./utils"
 
@@ -7,7 +8,11 @@ const channel = arg === "dev" || arg === "beta" || arg === "prod" ? arg : resolv
 
 const appId = Brand.appID[channel]
 
-const productName = channel === "prod" ? Brand.name : channel === "beta" ? `${Brand.name} Beta` : Brand.devName
+const productName = Match.value(channel).pipe(
+  Match.when("prod", () => Brand.name),
+  Match.when("beta", () => `${Brand.name} Beta`),
+  Match.orElse(() => Brand.devName),
+)
 
 const summary = `The internal coding agent${channel !== "prod" ? ` (${channel})` : ""}`
 
@@ -21,7 +26,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
   <name>${productName}</name>
   <summary>${summary}</summary>
 
-  <developer id="com.ballm">
+  <developer id="${Brand.developerID}">
     <name>${Brand.legalName}</name>
   </developer>
 

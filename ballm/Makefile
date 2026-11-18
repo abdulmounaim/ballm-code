@@ -2,7 +2,7 @@ SHELL := /bin/bash
 ROOT := $(shell cd .. && pwd)
 BUN ?= bun
 
-.PHONY: bootstrap dev backend test verify typecheck icons build-cli build-desktop sync release clean
+.PHONY: bootstrap dev backend test verify typecheck icons brand-audit build-cli build-desktop sync release clean
 
 bootstrap:
 	cd $(ROOT) && $(BUN) install
@@ -26,6 +26,9 @@ verify:
 
 icons:
 	cd distro && $(BUN) run icons
+
+brand-audit:
+	cd distro && $(BUN) run brand-audit
 
 build-cli:
 	./distro/scripts/build-cli.sh

@@ -77,6 +77,7 @@ Without the three identities, only local unsigned Linux builds are possible.
 ## Release checklist
 
 - [ ] `make -C ballm verify` passes
+- [ ] `make -C ballm brand-audit` passes
 - [ ] `upstream.lock` matches the intended base
 - [ ] managed policy statements reviewed
 - [ ] brand audit shows no unintended upstream names or feeds

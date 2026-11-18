@@ -67,14 +67,15 @@ Brand constants live in `packages/schema/src/brand.ts`. Source art lives in
 `ballm/distro/branding/source/`.
 
 ```sh
-cd ballm/distro
-bun install
-bun run icons
+make -C ballm icons
+make -C ballm brand-audit
 ```
 
 The generator writes `packages/desktop/icons/{dev,beta,prod}` and the favicon/social assets under
 `packages/ui/src/assets` and `packages/app/public`. The current art is a placeholder; replacing the
-three source files is the only step needed when design delivers final artwork.
+three source files is the only step needed when design delivers final artwork. The brand audit
+checks app IDs, update feeds, deep links, generated icons, shell titles, and the managed-policy
+statements.
 
 ## CLI
 

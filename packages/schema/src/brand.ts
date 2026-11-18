@@ -15,6 +15,7 @@ export const Brand = {
     prod: "com.ballm.code",
   },
   protocol: "ballm",
+  developerID: "com.ballm",
   linuxExecutable: "ballm-code",
   website: "https://code.ballm.internal",
   docs: "https://code.ballm.internal/docs",

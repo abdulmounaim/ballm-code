@@ -9,6 +9,11 @@ describe("Ballm brand identity", () => {
     expect(Brand.protocol).toBe("ballm")
   })
 
+  test("AppStream developer matches the Ballm domain", () => {
+    expect(Brand.developerID).toBe("com.ballm")
+    expect(Brand.appID.prod.split(".").slice(0, 2).join(".")).toBe(Brand.developerID)
+  })
+
   test("update feeds are Ballm-owned", () => {
     for (const url of Object.values(Brand.update.urls)) {
       expect(url.startsWith("https://updates.ballm.internal/desktop/")).toBe(true)

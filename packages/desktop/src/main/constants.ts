@@ -9,13 +9,14 @@ export const CHANNEL: Channel = raw === "local" || raw === "dev" || raw === "bet
 
 export const VERSION = app.isPackaged ? app.getVersion() : (process.env.OPENCODE_VERSION ?? app.getVersion())
 
-const appNames: Record<string, string> = {
+const appNames = {
+  local: Brand.devName,
   dev: Brand.devName,
   beta: `${Brand.name} Beta`,
   prod: Brand.name,
-}
+} as const satisfies Record<Channel, string>
 
-const appIDs: Record<string, string> = Brand.appID
+const appIDs = { ...Brand.appID, local: Brand.appID.dev } as const satisfies Record<Channel, string>
 
 // Local renderer/server mode keeps the dev application identity.
 export const APP_NAME = app.isPackaged ? appNames[CHANNEL] : Brand.devName

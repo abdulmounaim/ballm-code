@@ -7,6 +7,8 @@ pinned base in `upstream.lock`.
 
 ### Added
 
+- `make -C ballm brand-audit` and `ballm/distro/scripts/brand-audit.ts`: enforce Ballm app IDs,
+  update feeds, deep links, generated icons, shell titles, and managed-policy statements.
 - Project layout under `ballm/` with backend, managed policy, distro, docs, and tests.
 - `packages/core/src/ballm/` client integration: device-code OAuth, remote config, provider wiring.
 - Ballm control plane scaffold: device flow, token rotation, user/org directory, `/api/v2/config`,
@@ -18,6 +20,8 @@ pinned base in `upstream.lock`.
 
 ### Changed
 
+- The upstream OpenCode Console provider is no longer registered in the Ballm build; the Ballm
+  integration replaces it, and only Ballm plus policy enforcement are guarded.
 - Desktop identity is now `Ballm Code` / `com.ballm.code`, with `ballm://` deep links and
   `ballm-code-*` artifacts.
 - Desktop, web, and TUI logos and wordmarks are Ballm-branded.
@@ -25,6 +29,8 @@ pinned base in `upstream.lock`.
 - Updater feeds, user agent, changelog URL, and release workflow point at Ballm.
 - The desktop CLI installer writes `~/.ballm/bin/ballm`.
 - Brand names were replaced across the English and translated UI strings.
+- Ballm-specific voice prompts, model labels, desktop perf fixtures, and AppStream metadata no longer
+  use the upstream identity.
 - `packages/core/src/plugin/provider.ts` registers the Ballm provider plugin.
 - `packages/core/src/plugin/internal.ts` marks the Ballm plugin as guarded so configuration cannot
   remove it.
