@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+secrets
+.env
+.env.*
+!.env.example
+test
+coverage
+dist
+helm
+*.log

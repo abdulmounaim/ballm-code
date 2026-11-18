@@ -125,3 +125,54 @@ jobs:
             \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' \
                -o -name '*.rpm' -o -name '*.blockmap' -o -name 'latest*.yml' \) \
             -exec aws s3 cp {} "s3://$BALLM_UPDATE_BUCKET/desktop/prod/" \;
+
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Verify backend
+        run: |
+          cd ballm/backend
+          bun install --frozen-lockfile
+          bun run typecheck
+
+      - name: Build image
+        run: |
+          cd ballm/backend
+          docker build --build-arg SERVICE=control-plane \
+            -t "$BALLM_REGISTRY/ballm/backend:${{ inputs.version }}" .
+        env:
+          BALLM_REGISTRY: ${{ secrets.BALLM_REGISTRY }}
+
+      - name: Package chart
+        run: |
+          helm package ballm/backend/helm/ballm-code \
+            --version "${{ inputs.version }}" \
+            --app-version "${{ inputs.version }}" \
+            --destination dist/helm
+
+      - name: Publish images and chart
+        if: ${{ inputs.publish }}
+        env:
+          BALLM_REGISTRY: ${{ secrets.BALLM_REGISTRY }}
+          BALLM_REGISTRY_USERNAME: ${{ secrets.BALLM_REGISTRY_USERNAME }}
+          BALLM_REGISTRY_PASSWORD: ${{ secrets.BALLM_REGISTRY_PASSWORD }}
+        run: |
+          echo "$BALLM_REGISTRY_PASSWORD" | docker login "$BALLM_REGISTRY" \
+            --username "$BALLM_REGISTRY_USERNAME" --password-stdin
+          docker push "$BALLM_REGISTRY/ballm/backend:${{ inputs.version }}"
+          echo "$BALLM_REGISTRY_PASSWORD" | helm registry login "$BALLM_REGISTRY" \
+            --username "$BALLM_REGISTRY_USERNAME" --password-stdin
+          helm push "dist/helm/ballm-code-${{ inputs.version }}.tgz" "oci://$BALLM_REGISTRY/ballm/charts"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ballm-backend-chart
+          path: dist/helm/**

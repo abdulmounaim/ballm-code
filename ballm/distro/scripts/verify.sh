@@ -4,8 +4,11 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
+echo "== backend typecheck =="
+(cd ballm/backend && bun run typecheck)
+
 echo "== backend tests =="
-(cd ballm/backend && bun test)
+(cd ballm/backend && bun run test)
 
 echo "== policy tests =="
 (cd ballm/tests && bun test e2e)

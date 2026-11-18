@@ -1,0 +1,82 @@
+image:
+  repository: registry.ballm.internal/ballm/backend
+  tag: "0.1.0"
+  pullPolicy: IfNotPresent
+
+serviceAccount:
+  create: true
+  name: ""
+
+controlPlane:
+  replicas: 2
+  port: 8787
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+gateway:
+  replicas: 3
+  port: 8788
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+
+env:
+  BALLM_ENV: production
+  BALLM_REGION: region-a
+  BALLM_PUBLIC_URL: https://code.ballm.internal
+  BALLM_GATEWAY_PUBLIC_URL: https://ai.ballm.internal
+  BALLM_JWT_ISSUER: https://code.ballm.internal
+  BALLM_JWT_AUDIENCE: ballm-code
+  BALLM_JWT_KID: ballm-1
+  BALLM_MIGRATE_ON_START: "0"
+  BALLM_DB_POOL_MAX: "20"
+  BALLM_TRUST_PROXY: "1"
+
+secrets:
+  # Must contain DATABASE_URL, REDIS_URL, BALLM_ENCRYPTION_KEY, and BALLM_ADMIN_TOKEN.
+  existingSecret: ballm-platform
+
+jwt:
+  # Must contain jwt-private.pem and jwt-public.pem.
+  existingSecret: ballm-jwt
+  privateKey: jwt-private.pem
+  publicKey: jwt-public.pem
+
+migration:
+  enabled: true
+
+ingress:
+  enabled: true
+  className: nginx
+  controlPlaneHost: code.ballm.internal
+  gatewayHost: ai.ballm.internal
+  tlsSecret: ballm-tls
+
+autoscaling:
+  enabled: true
+  controlPlane:
+    minReplicas: 2
+    maxReplicas: 6
+    targetCPUUtilizationPercentage: 70
+  gateway:
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 65
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+topology:
+  # Spread replicas across nodes and zones in multi-AZ clusters.
+  enabled: true
+  topologyKey: topology.kubernetes.io/zone

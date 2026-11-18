@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ballm.fullname" . }}-control-plane
+  labels:
+    {{- include "ballm.labels" . | nindent 4 }}
+    app.kubernetes.io/component: control-plane
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        {{- include "ballm.labels" . | nindent 8 }}
+        app.kubernetes.io/component: control-plane
+    spec:
+      serviceAccountName: {{ include "ballm.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: control-plane
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: BALLM_SERVICE
+              value: control-plane
+            - name: PORT
+              value: {{ .Values.controlPlane.port | quote }}
+            - name: BALLM_JWT_PRIVATE_KEY_FILE
+              value: /var/run/ballm/jwt/{{ .Values.jwt.privateKey }}
+            - name: BALLM_JWT_PUBLIC_KEY_FILE
+              value: /var/run/ballm/jwt/{{ .Values.jwt.publicKey }}
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secrets.existingSecret }}
+            - configMapRef:
+                name: {{ include "ballm.fullname" . }}-env
+          ports:
+            - name: http
+              containerPort: {{ .Values.controlPlane.port }}
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.controlPlane.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: jwt
+              mountPath: /var/run/ballm/jwt
+              readOnly: true
+      volumes:
+        - name: jwt
+          secret:
+            secretName: {{ .Values.jwt.existingSecret }}
+      {{- if .Values.topology.enabled }}
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: {{ .Values.topology.topologyKey }}
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/instance: {{ .Release.Name }}
+              app.kubernetes.io/component: control-plane
+      {{- end }}

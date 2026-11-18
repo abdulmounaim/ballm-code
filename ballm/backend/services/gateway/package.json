@@ -1,0 +1,15 @@
+{
+  "name": "@ballm/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts"
+  },
+  "dependencies": {
+    "@ballm/platform": "workspace:*",
+    "hono": "4.13.13",
+    "jose": "^6.0.0"
+  }
+}

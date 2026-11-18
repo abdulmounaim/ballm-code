@@ -1,0 +1,43 @@
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ballm.fullname" . }}-control-plane
+  labels:
+    {{- include "ballm.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ballm.fullname" . }}-control-plane
+  minReplicas: {{ .Values.autoscaling.controlPlane.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.controlPlane.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.controlPlane.targetCPUUtilizationPercentage }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "ballm.fullname" . }}-gateway
+  labels:
+    {{- include "ballm.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "ballm.fullname" . }}-gateway
+  minReplicas: {{ .Values.autoscaling.gateway.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.gateway.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.autoscaling.gateway.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,18 @@
+1. Create the secrets the chart expects:
+
+   kubectl create secret generic ballm-platform \
+     --from-literal=DATABASE_URL='postgres://...' \
+     --from-literal=REDIS_URL='redis://...' \
+     --from-literal=BALLM_ENCRYPTION_KEY='...' \
+     --from-literal=BALLM_ADMIN_TOKEN='...'
+
+   kubectl create secret generic ballm-jwt \
+     --from-file=jwt-private.pem=secrets/jwt-private.pem \
+     --from-file=jwt-public.pem=secrets/jwt-public.pem
+
+2. Set the real hostnames in values.yaml, then install:
+
+   helm upgrade --install ballm ./helm/ballm-code -f values.production.yaml
+
+3. The control plane owns writes; the gateway only reads. Point
+   DATABASE_READ_URL at the regional replica in each region.

@@ -10,7 +10,12 @@
     "noEmit": true,
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "baseUrl": ".",
+    "paths": {
+      "@ballm/platform": ["packages/platform/src/index.ts"],
+      "@ballm/platform/*": ["packages/platform/src/*"]
+    }
   },
-  "include": ["src", "test"]
+  "include": ["packages", "services", "test", "scripts"]
 }

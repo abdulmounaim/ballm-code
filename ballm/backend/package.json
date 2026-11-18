@@ -1,17 +1,25 @@
 {
-  "name": "@ballm/control-plane",
+  "$schema": "https://json.schemastore.org/package.json",
+  "name": "@ballm/backend",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
   "scripts": {
-    "dev": "bun run --watch src/index.ts",
-    "start": "bun run src/index.ts",
-    "test": "bun test"
-  },
-  "dependencies": {
-    "hono": "4.13.13"
+    "dev:control": "bun run --watch services/control-plane/src/index.ts",
+    "dev:gateway": "bun run --watch services/gateway/src/index.ts",
+    "start:control": "bun run services/control-plane/src/index.ts",
+    "start:gateway": "bun run services/gateway/src/index.ts",
+    "migrate": "bun run packages/platform/src/db/cli.ts",
+    "keys": "bun run scripts/generate-keys.ts",
+    "test": "./scripts/test.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
     "@types/bun": "1.4.3",
+    "jose": "^6.0.0",
     "typescript": "5.9.3"
   }
 }

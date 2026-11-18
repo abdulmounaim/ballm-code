@@ -1,133 +1,132 @@
-import { describe, expect, test } from "bun:test"
-import { createApp } from "../src/app.js"
-import type { ServerConfig } from "../src/env.js"
-import { open } from "../src/store/db.js"
-
-const config: ServerConfig = {
-  port: 0,
-  publicUrl: "http://localhost:8787",
-  db: ":memory:",
-  orgID: "org_local",
-  orgName: "Local",
-  models: [{ id: "ballm-fast", name: "Ballm Fast" }],
-  upstreamBaseUrl: undefined,
-  upstreamApiKey: undefined,
-  devEcho: true,
-  allowDevApprove: true,
-  accessTtl: 3600,
-  refreshTtl: 2_592_000,
-}
-
-function setup() {
-  const db = open(":memory:")
-  return { db, app: createApp(db, config) }
-}
-
-async function post(app: ReturnType<typeof setup>["app"], path: string, body: unknown, token?: string) {
-  return app.request(path, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(token ? { authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  })
-}
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { createTestOrg, randomEmail, setupContext, type TestContext } from "./helpers"
 
 describe("device flow", () => {
-  test("issues tokens only after approval and rotates refresh tokens", async () => {
-    const { app } = setup()
+  let ctx: TestContext
 
-    const code = await post(app, "/auth/device/code", { client_id: "ballm-cli" })
+  beforeEach(async () => {
+    ctx = await setupContext()
+  })
+
+  afterEach(async () => {
+    await ctx.close()
+  })
+
+  test("approves a device, rotates refresh tokens, and revokes the session", async () => {
+    const { org } = await createTestOrg(ctx, {
+      slug: "test",
+      name: "Test Org",
+      model: { id: "ballm-fast", upstreamModel: "upstream-fast" },
+    })
+    const email = randomEmail("device")
+
+    const code = await ctx.app.request("/auth/device/code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client_id: "ballm-cli" }),
+    })
     expect(code.status).toBe(200)
     const device = (await code.json()) as { device_code: string; user_code: string; verification_uri_complete: string }
     expect(device.verification_uri_complete).toContain(device.user_code)
 
-    const pending = await post(app, "/auth/device/token", {
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-      device_code: device.device_code,
-      client_id: "ballm-cli",
+    const pending = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: device.device_code,
+      }),
     })
     expect(pending.status).toBe(400)
     expect(await pending.json()).toEqual({ error: "authorization_pending" })
 
-    const approve = await post(app, "/auth/device/approve", {
-      user_code: device.user_code,
-      email: "dev@ballm.internal",
+    const login = await ctx.app.request("/auth/dev/login", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ email, org: "test", user_code: device.user_code }),
     })
-    expect(approve.status).toBe(200)
+    expect(login.status).toBe(200)
 
-    const issued = await post(app, "/auth/device/token", {
-      grant_type: "urn:ietf:params:oauth:grant-type:device_code",
-      device_code: device.device_code,
-      client_id: "ballm-cli",
+    const issued = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: device.device_code,
+      }),
     })
     expect(issued.status).toBe(200)
     const tokens = (await issued.json()) as { access_token: string; refresh_token: string; org_id: string }
-    expect(tokens.org_id).toBe("org_local")
+    expect(tokens.org_id).toBe(org.id)
 
-    const user = await app.request("/api/user", { headers: { authorization: `Bearer ${tokens.access_token}` } })
-    expect(await user.json()).toEqual({ id: expect.any(String), email: "dev@ballm.internal" })
-
-    const configResponse = await app.request("/api/v2/config", {
-      headers: { authorization: `Bearer ${tokens.access_token}`, "x-org-id": "org_local" },
+    const user = await ctx.app.request("/api/user", {
+      headers: { authorization: `Bearer ${tokens.access_token}` },
     })
-    expect(configResponse.status).toBe(200)
-    const remote = (await configResponse.json()) as {
+    expect(user.status).toBe(200)
+    expect(((await user.json()) as { email: string }).email).toBe(email)
+
+    const config = await ctx.app.request("/api/v2/config", {
+      headers: { authorization: `Bearer ${tokens.access_token}`, "x-org-id": org.id },
+    })
+    expect(config.status).toBe(200)
+    const remote = (await config.json()) as {
       providers: { ballm: { settings: { baseURL: string }; models: Record<string, unknown> } }
       policies: unknown[]
     }
-    expect(remote.providers.ballm.settings.baseURL).toBe("http://localhost:8787/v1")
+    expect(remote.providers.ballm.settings.baseURL).toBe("http://localhost:8788/v1")
     expect(remote.providers.ballm.models["ballm-fast"]).toBeDefined()
     expect(remote.policies.length).toBeGreaterThan(0)
 
-    const models = await app.request("/v1/models", { headers: { authorization: `Bearer ${tokens.access_token}` } })
-    expect(models.status).toBe(200)
-    const list = (await models.json()) as { data: { id: string }[] }
-    expect(list.data.map((item) => item.id)).toEqual(["ballm-fast"])
-
-    const completion = await post(
-      app,
-      "/v1/chat/completions",
-      { model: "ballm-fast", messages: [] },
-      tokens.access_token,
-    )
-    expect(completion.status).toBe(200)
-    const body = (await completion.json()) as { choices: { message: { content: string } }[] }
-    expect(body.choices[0]?.message.content).toContain("Ballm dev echo")
-
-    const stream = await post(
-      app,
-      "/v1/chat/completions",
-      { model: "ballm-fast", messages: [], stream: true },
-      tokens.access_token,
-    )
-    expect(stream.status).toBe(200)
-    expect(stream.headers.get("content-type")).toContain("text/event-stream")
-    expect(await stream.text()).toContain("data: [DONE]")
-
-    const blocked = await post(app, "/v1/chat/completions", { model: "unknown-model" }, tokens.access_token)
-    expect(blocked.status).toBe(403)
-
-    const rotated = await post(app, "/auth/device/token", {
-      grant_type: "refresh_token",
-      refresh_token: tokens.refresh_token,
-      client_id: "ballm-cli",
+    const rotated = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grant_type: "refresh_token", refresh_token: tokens.refresh_token }),
     })
     expect(rotated.status).toBe(200)
     const next = (await rotated.json()) as { access_token: string; refresh_token: string }
 
-    const reuse = await post(app, "/auth/device/token", {
-      grant_type: "refresh_token",
-      refresh_token: tokens.refresh_token,
+    const reuse = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grant_type: "refresh_token", refresh_token: tokens.refresh_token }),
     })
     expect(reuse.status).toBe(400)
 
-    const revoke = await post(app, "/auth/device/revoke", { token: next.access_token })
-    expect(revoke.status).toBe(200)
-    const denied = await app.request("/api/v2/config", {
+    const afterReuse = await ctx.app.request("/api/user", {
       headers: { authorization: `Bearer ${next.access_token}` },
     })
-    expect(denied.status).toBe(401)
+    expect(afterReuse.status).toBe(401)
+
+    const second = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grant_type: "refresh_token", refresh_token: next.refresh_token }),
+    })
+    expect(second.status).toBe(400)
+  })
+
+  test("rejects a code without approval and an expired refresh token", async () => {
+    const code = await ctx.app.request("/auth/device/code", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ client_id: "ballm-cli" }),
+    })
+    const device = (await code.json()) as { device_code: string }
+    const pending = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        grant_type: "urn:ietf:params:oauth:grant-type:device_code",
+        device_code: device.device_code,
+      }),
+    })
+    expect(pending.status).toBe(400)
+
+    const invalid = await ctx.app.request("/auth/device/token", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ grant_type: "refresh_token", refresh_token: "unknown" }),
+    })
+    expect(invalid.status).toBe(400)
   })
 })
