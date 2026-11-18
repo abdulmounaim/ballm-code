@@ -19,10 +19,10 @@ monorepo, kept as close to upstream as possible so upgrades stay cheap.
 | --- | --- |
 | `packages/schema/src/brand.ts` | Single source for product name, app ID, URLs, feeds |
 | `packages/core/src/ballm/` | Client integration: OAuth, remote config, provider wiring |
-| `ballm/backend/` | PostgreSQL platform: control plane, gateway, migrations, Helm |
+| `ballm/backend/` | PostgreSQL platform: control plane, gateway, console, migrations, Helm |
 | `ballm/managed/` | Managed policy files for Linux, macOS, and Windows |
 | `ballm/distro/` | Branding source, icon generator, installers, build/release scripts |
-| `ballm/docs/` | Architecture, backend contract, enforcement, release, runbook |
+| `ballm/docs/` | Architecture, backend contract, enforcement, release, runbook, console |
 | `ballm/tests/` | Cross-cutting policy and end-to-end checks |
 
 ## Quick start
@@ -36,9 +36,11 @@ make -C ballm dev           # start the Ballm Code TUI against this checkout
 ```
 
 In the TUI, connect the `Ballm` integration. The approval page is served by the control plane at
-`http://localhost:8787/device`; it resolves the organization from the work email and hands off to
-SSO. For local development, configure an OIDC connection through the admin API, or enable
-`BALLM_DEV_AUTH=1` and use `POST /auth/dev/login`.
+`http://localhost:8787/console/device`; it resolves the organization from the work email and hands
+off to SSO. The management console is at `http://localhost:8787/console/`, with overview, members,
+models, policies, identity, upstream, sessions, usage, and audit. For local development, configure
+an OIDC connection through the console or admin API, or enable `BALLM_DEV_AUTH=1` and use
+`POST /auth/dev/login`.
 
 See `docs/05-development.md` for prerequisites, environment variables, SSO setup, and test commands.
 The platform itself is documented in `ballm/backend/README.md`.
@@ -73,6 +75,8 @@ small registration points in `packages/` unless the change is intentional and do
 
 - Platform: separate control plane and gateway, PostgreSQL, Redis, JWT access tokens, rotating
   refresh tokens, multi-org SSO, admin API, usage recording, Docker Compose, Helm.
+- Console: SolidJS admin and account UI served by the control plane, with cookie auth, CSRF,
+  server-side RBAC, CSP, light/dark themes, and a device approval flow.
 - Client integration and provider routing: implemented and tested end to end.
 - Managed policy: implemented.
 - Desktop/web/TUI branding: implemented with placeholder art and enforced by `make -C ballm brand-audit`.

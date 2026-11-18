@@ -10,6 +10,15 @@ echo "== backend typecheck =="
 echo "== backend tests =="
 (cd ballm/backend && bun run test)
 
+echo "== console typecheck =="
+(cd ballm/backend/console && bun run typecheck)
+
+echo "== console tests =="
+(cd ballm/backend/console && bun test)
+
+echo "== console build =="
+(cd ballm/backend/console && bun run build)
+
 echo "== policy tests =="
 (cd ballm/tests && bun test e2e)
 

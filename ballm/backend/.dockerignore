@@ -7,5 +7,6 @@ secrets
 test
 coverage
 dist
+console/dist
 helm
 *.log

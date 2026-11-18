@@ -125,7 +125,8 @@ export function allowedByDomain(connection: OidcConnection, email: string) {
 }
 
 export function roleForClaims(connection: OidcConnection, claims: IdTokenClaims) {
-  if (!connection.groupClaim || !connection.groupRoles) return "member"
+  if (!connection.groupClaim || !connection.groupRoles) return undefined
+  if (Object.keys(connection.groupRoles).length === 0) return undefined
   const raw = (claims as Record<string, unknown>)[connection.groupClaim]
   const groups = Array.isArray(raw) ? raw : typeof raw === "string" ? [raw] : []
   const mapped = groups

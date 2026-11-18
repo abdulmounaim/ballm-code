@@ -4,11 +4,12 @@
 
 1. Install Ballm Code from the internal artifact store.
 2. Confirm the managed policy is present (`/etc/opencode/opencode.jsonc` or the MDM profile).
-3. Start the client and run the integration dialog.
-4. Choose **Ballm** and open the device URL.
-5. Sign in with the corporate identity provider.
-6. Approve the device code and return to the client.
-7. Verify the model picker contains only Ballm models.
+3. Give the person a role in `/console/members`.
+4. Start the client and run the integration dialog.
+5. Choose **Ballm** and open the device URL.
+6. Sign in with the corporate identity provider.
+7. Approve the device code and return to the client.
+8. Verify the model picker contains only Ballm models.
 
 The user must already exist in the identity provider and match an organization's allowed email
 domain, or have a membership created through the admin API.
@@ -16,14 +17,14 @@ domain, or have a membership created through the admin API.
 ## Offboard a developer
 
 1. Disable the user in the identity provider.
-2. Revoke every session:
+2. Remove them from the organization in `/console/members`, or revoke every session:
 
    ```sh
    curl -X POST "$BALLM_PUBLIC_URL/api/v1/admin/users/<userId>/revoke" \
      -H "authorization: Bearer $BALLM_ADMIN_TOKEN"
    ```
 
-   This marks sessions and refresh tokens revoked and writes `ballm:revoked:<sid>` to Redis.
+   Both paths mark sessions and refresh tokens revoked and write `ballm:revoked:<sid>` to Redis.
 3. Confirm the next gateway request returns 401.
 4. The client reports `needs_auth` on the next config poll.
 
@@ -51,6 +52,20 @@ revocation remain valid until `BALLM_ACCESS_TTL` expires (five minutes by defaul
 2. Add the new key to the control plane secret and deploy it; the JWKS endpoint serves the new `kid`.
 3. Deploy gateways with the new public key, or let JWKS refresh.
 4. Short-lived access tokens make the overlap safe.
+
+## Diagnose console access
+
+1. `GET /console/` returning `503` means the assets are missing. Set `BALLM_CONSOLE_DIR` or build
+   them with `make -C ballm console`.
+2. A sign-in loop usually means the IdP redirect URI is not
+   `$BALLM_PUBLIC_URL/auth/sso/callback`, or the email domain is not in the organization's allowed
+   domains.
+3. `403` on a save usually means the CSRF token expired after a key rotation or a stale tab. Reload
+   the console.
+4. A user who can sign in but sees only their account has the `member` role. Promote them in
+   `/console/members`.
+5. Check the browser console for CSP violations; do not relax the policy with `unsafe-eval` or
+   third-party scripts.
 
 ## Diagnose "no models"
 

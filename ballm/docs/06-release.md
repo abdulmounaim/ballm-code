@@ -15,7 +15,7 @@ Tags are `v2.3.0`. The upstream base remains in `upstream.lock`.
 | CLI binaries | `./distro/scripts/build-cli.sh` | internal artifact store |
 | npm packages | `bun run script/pack.ts` | internal registry (optional) |
 | Desktop installers | `./distro/scripts/build-desktop.sh` | `dist/desktop` |
-| Backend image | `ballm/backend/Dockerfile` | internal registry |
+| Backend image | `ballm/backend/Dockerfile` (includes the console build) | internal registry |
 | Backend chart | `ballm/backend/helm/ballm-code` | internal Helm repository |
 | Managed policy | `ballm/managed/` | packaged with the installer |
 | Update manifests | electron-builder `latest*.yml` | Ballm update feed |
@@ -113,7 +113,8 @@ Without the three identities, only local unsigned Linux builds are possible.
 
 ## Release checklist
 
-- [ ] `make -C ballm verify` passes
+- [ ] `make -C ballm verify` passes, including the console typecheck and production build
+- [ ] `/console/` loads through the ingress with its CSP headers intact
 - [ ] `make -C ballm brand-audit` passes
 - [ ] `upstream.lock` matches the intended base
 - [ ] managed policy statements reviewed

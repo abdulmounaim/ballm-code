@@ -37,6 +37,7 @@ env:
   BALLM_JWT_ISSUER: https://code.ballm.internal
   BALLM_JWT_AUDIENCE: ballm-code
   BALLM_JWT_KID: ballm-1
+  BALLM_CONSOLE_DIR: /app/console/dist
   BALLM_MIGRATE_ON_START: "0"
   BALLM_DB_POOL_MAX: "20"
   BALLM_TRUST_PROXY: "1"

@@ -4,11 +4,13 @@ import { apiError } from "@ballm/platform/http"
 import type { Deps } from "./deps"
 import { adminRoutes } from "./routes/admin"
 import { configRoutes } from "./routes/config"
+import { consoleRoutes } from "./routes/console"
 import { deviceRoutes } from "./routes/device"
 import { directoryRoutes } from "./routes/directory"
 import { healthRoutes } from "./routes/health"
 import { jwksRoutes } from "./routes/jwks"
 import { ssoRoutes } from "./routes/sso"
+import { applySecurityHeaders, consoleStaticRoutes } from "./static"
 
 export function createApp(deps: Deps) {
   const app = new Hono<{ Variables: import("./deps").Variables }>()
@@ -17,8 +19,8 @@ export function createApp(deps: Deps) {
     const id = c.req.header("x-request-id") ?? randomUUID()
     c.set("requestId", id)
     c.header("x-request-id", id)
-    c.header("x-content-type-options", "nosniff")
-    c.header("referrer-policy", "no-referrer")
+    applySecurityHeaders(c, deps)
+    if (c.req.path.startsWith("/api/console/")) c.header("cache-control", "no-store")
     const logger = deps.logger.child({ requestId: id })
     c.set("logger", logger)
     const started = performance.now()
@@ -61,11 +63,14 @@ export function createApp(deps: Deps) {
   app.route("/", directoryRoutes(deps))
   app.route("/", configRoutes(deps))
   app.route("/", adminRoutes(deps))
+  app.route("/", consoleRoutes(deps))
+  consoleStaticRoutes(app, deps)
 
   app.get("/", (c) =>
     c.json({
       service: "ballm-control-plane",
       region: deps.env.BALLM_REGION,
+      console: "/console",
       docs: "/.well-known/jwks.json",
     }),
   )

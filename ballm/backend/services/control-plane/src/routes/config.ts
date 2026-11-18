@@ -12,11 +12,11 @@ export function configRoutes(deps: Deps) {
     const current = claims(c)
     const requested = c.req.header("x-org-id") ?? current.org
     if (requested !== current.org) {
-      const allowed = await membership(deps.db.read, current.sub, requested)
+      const allowed = await membership(deps.db.write, current.sub, requested)
       if (!allowed) return c.json({ error: "forbidden", message: "No membership in this organization" }, 403)
     }
 
-    const config = await getOrgConfig(deps.db.read, requested)
+    const config = await getOrgConfig(deps.db.write, requested)
     if (config.models.length === 0)
       return c.json({ error: "not_found", message: "No models are enabled for this organization" }, 404)
 

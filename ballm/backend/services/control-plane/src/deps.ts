@@ -6,10 +6,12 @@ import type { ControlPlaneEnv } from "@ballm/platform/env"
 import type { Logger } from "@ballm/platform/logging"
 import type { Metrics } from "@ballm/platform/metrics"
 import type { SecretBox } from "@ballm/platform/secrets"
+import type { ConsoleContext } from "./console/types"
 
 export type Variables = {
   requestId: string
   claims: AccessClaims
+  console: ConsoleContext
   logger: Logger
 }
 

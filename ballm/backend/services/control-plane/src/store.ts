@@ -124,11 +124,17 @@ export async function membership(sql: Sql, userId: string, orgId: string) {
   return rows[0]
 }
 
-export async function ensureMembership(sql: Sql, userId: string, orgId: string, role = "member") {
+/**
+ * Adds a membership, or updates its role when one is supplied. An undefined role preserves an
+ * existing role, which keeps manually promoted owners from being demoted on every SSO login when
+ * the organization has no group mapping.
+ */
+export async function ensureMembership(sql: Sql, userId: string, orgId: string, role?: string) {
   await sql`
     INSERT INTO memberships (user_id, org_id, role)
-    VALUES (${userId}, ${orgId}, ${role})
-    ON CONFLICT (user_id, org_id) DO UPDATE SET role = EXCLUDED.role
+    VALUES (${userId}, ${orgId}, ${role ?? "member"})
+    ON CONFLICT (user_id, org_id) DO UPDATE SET
+      role = CASE WHEN ${role === undefined} THEN memberships.role ELSE EXCLUDED.role END
   `
 }
 
@@ -571,14 +577,24 @@ export async function setSso(
 
 export async function setOrgSettings(
   sql: Sql,
-  input: { orgId: string; upstreamBaseUrl?: string; encryptedUpstreamApiKey?: string },
+  input: {
+    orgId: string
+    upstreamBaseUrl?: string | null
+    encryptedUpstreamApiKey?: string | null
+  },
 ) {
   await sql`
     INSERT INTO org_settings (org_id, upstream_base_url, encrypted_upstream_api_key)
     VALUES (${input.orgId}, ${input.upstreamBaseUrl ?? null}, ${input.encryptedUpstreamApiKey ?? null})
     ON CONFLICT (org_id) DO UPDATE SET
-      upstream_base_url = COALESCE(EXCLUDED.upstream_base_url, org_settings.upstream_base_url),
-      encrypted_upstream_api_key = COALESCE(EXCLUDED.encrypted_upstream_api_key, org_settings.encrypted_upstream_api_key),
+      upstream_base_url = CASE
+        WHEN ${input.upstreamBaseUrl === null} THEN NULL
+        ELSE COALESCE(EXCLUDED.upstream_base_url, org_settings.upstream_base_url)
+      END,
+      encrypted_upstream_api_key = CASE
+        WHEN ${input.encryptedUpstreamApiKey === null} THEN NULL
+        ELSE COALESCE(EXCLUDED.encrypted_upstream_api_key, org_settings.encrypted_upstream_api_key)
+      END,
       updated_at = now()
   `
 }

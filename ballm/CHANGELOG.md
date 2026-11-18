@@ -17,6 +17,11 @@ pinned base in `upstream.lock`.
 - Gateway rate limiting, model rewriting, streaming pass-through, SSE usage capture, and partitioned
   audit/usage tables.
 - Docker Compose stack and a Helm chart for on-prem/Kubernetes, including a migration Job.
+- Browser console at `/console/`: SolidJS + Vite + Tailwind, light/dark themes, command menu,
+  overview, members, models, policies, SSO, upstream, sessions, usage, audit, and account screens.
+- Device approval moved into the console; `/device` redirects to `/console/device`.
+- Console API with browser-cookie auth, per-session CSRF tokens, origin checks, server-side RBAC,
+  strict CSP and security headers, secret redaction, and an audit event for every mutation.
 - `make -C ballm brand-audit` and `ballm/distro/scripts/brand-audit.ts`: enforce Ballm app IDs,
   update feeds, deep links, generated icons, shell titles, and managed-policy statements.
 - Project layout under `ballm/` with backend, managed policy, distro, docs, and tests.

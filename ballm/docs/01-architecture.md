@@ -10,11 +10,13 @@
 │ Ballm Code       │      │ Control plane        │
 │ TUI / desktop    │─────▶│ /auth/device/*       │
 │                  │      │ /auth/sso/*          │
-│ BallmPlugin      │      │ /api/v2/config       │
-│ - device login   │      │ /api/v1/admin/*      │
-│ - remote config  │      │ /.well-known/jwks    │
-│ - provider wiring│      └──────┬───────────────┘
-└────────┬─────────┘             │ writes
+│ BallmPlugin      │      │ /api/console/*       │
+│ - device login   │      │ /console/ SPA        │
+│ - remote config  │      │ /api/v2/config       │
+│ - provider wiring│      │ /api/v1/admin/*      │
+└────────┬─────────┘      │ /.well-known/jwks    │
+         │                └──────┬───────────────┘
+         │                       │ writes
          │ inference             ▼
          │                ┌──────────────┐
          │                │ PostgreSQL   │
@@ -41,6 +43,7 @@
 - OIDC authorization-code + PKCE, browser sessions, device approval;
 - users, organizations, memberships, SSO connections;
 - remote client config, org model allowlists, delivered policy;
+- browser console for people, served as a SolidJS SPA at `/console/`;
 - admin API for orgs, members, models, policies, SSO, and upstream settings;
 - JWKS for access-token verification.
 
@@ -69,6 +72,19 @@ Both services are stateless and can run as many replicas as needed.
 8. Inference goes to the gateway. `model-resolver.ts` injects the access token as the
    OpenAI-compatible `apiKey`; refresh is handled by the credential service.
 
+## Console
+
+The console is part of the control plane, not a separate deployment. It is a SolidJS SPA whose API
+uses the browser SSO session and organization role instead of the admin token. Every mutation is
+CSRF-protected and audited as the signed-in person.
+
+- Owners manage owners, admins, members, models, policies, SSO, upstream, sessions, and audit.
+- Admins manage everything except owner membership.
+- Members see their own access and revoke their own devices.
+
+The deployment serves one shell and one set of content-hashed assets, with a strict CSP. See
+[`08-console.md`](08-console.md).
+
 ## Auth
 
 - Access tokens are Ed25519 JWTs with `sub`, `org`, `sid`, `jti`, `iss`, `aud`, and `exp`.
@@ -96,6 +112,9 @@ region C: gateway + Redis + Postgres read replica
 ```
 
 - All writes go to the primary; gateways read from regional replicas.
+- The control plane reads the primary for sessions, memberships, console data, and delivered
+  config, so sign-in and policy changes are visible on the next request instead of waiting for
+  replica lag. Gateways remain replica readers.
 - JWT verification is local, so auth adds no cross-region hop.
 - Catalog changes publish `ballm:invalidate`; gateways clear local and Redis caches.
 - Rate limits are per region unless Redis is replicated globally.
@@ -117,7 +136,7 @@ fork is needed to:
 
 - `packages/core/src/ballm/` is the only runtime client code added to upstream.
 - `ballm/backend/` is the platform: `packages/platform`, `services/control-plane`,
-  `services/gateway`, migrations, Helm.
+  `services/gateway`, `console`, migrations, Helm.
 - `ballm/managed/`, `ballm/distro/`, and `ballm/docs/` are packaging and operations artifacts.
 
 ## Client storage

@@ -10,7 +10,7 @@ export function directoryRoutes(deps: Deps) {
   app.use("/api/orgs", accessAuth(deps))
 
   app.get("/api/user", async (c) => {
-    const user = await deps.db.read<{ id: string; email: string; name: string | null }[]>`
+    const user = await deps.db.write<{ id: string; email: string; name: string | null }[]>`
       SELECT id, email, name FROM users WHERE id = ${claims(c).sub} LIMIT 1
     `
     if (!user[0]) return c.json({ error: "unauthorized", message: "User no longer exists" }, 401)
@@ -18,7 +18,7 @@ export function directoryRoutes(deps: Deps) {
   })
 
   app.get("/api/orgs", async (c) => {
-    return c.json(await orgsForUser(deps.db.read, claims(c).sub))
+    return c.json(await orgsForUser(deps.db.write, claims(c).sub))
   })
 
   return app satisfies App

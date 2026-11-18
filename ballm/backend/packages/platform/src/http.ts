@@ -50,7 +50,13 @@ export function readCookie(c: Context, name: string) {
   if (!header) return undefined
   for (const part of header.split(";")) {
     const [key, ...rest] = part.trim().split("=")
-    if (key === name) return decodeURIComponent(rest.join("="))
+    if (key !== name) continue
+    const value = rest.join("=")
+    try {
+      return decodeURIComponent(value)
+    } catch {
+      return value
+    }
   }
   return undefined
 }

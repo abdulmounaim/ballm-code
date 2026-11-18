@@ -3,34 +3,39 @@ import path from "node:path"
 import type { Sql } from "./index"
 
 /**
- * Forward-only SQL migrations. Each file runs once in a transaction and is recorded in
- * `_ballm_migrations`. Deployments should run this as a Job before rolling new replicas.
+ * Forward-only SQL migrations. Each file runs once and is recorded in `_ballm_migrations`.
+ * The whole run is serialized with an advisory lock and one transaction, so several replicas or
+ * test processes can start at the same time without racing.
  */
 export async function migrate(sql: Sql, directory = migrationsDirectory()) {
-  await sql`
-    CREATE TABLE IF NOT EXISTS _ballm_migrations (
-      id text PRIMARY KEY,
-      applied_at timestamptz NOT NULL DEFAULT now()
-    )
-  `
-
-  const applied = new Set(
-    (await sql<{ id: string }[]>`SELECT id FROM _ballm_migrations ORDER BY id`).map((row) => row.id),
-  )
-
   const files = readdirSync(directory)
     .filter((file) => file.endsWith(".sql"))
     .sort()
 
-  for (const file of files) {
-    if (applied.has(file)) continue
-    const body = readFileSync(path.join(directory, file), "utf8")
-    await sql.begin(async (tx) => {
+  const appliedNow: string[] = []
+  await sql.begin(async (tx) => {
+    await tx`SELECT pg_advisory_xact_lock(918273645)`
+    await tx`
+      CREATE TABLE IF NOT EXISTS _ballm_migrations (
+        id text PRIMARY KEY,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      )
+    `
+
+    const applied = new Set(
+      (await tx<{ id: string }[]>`SELECT id FROM _ballm_migrations ORDER BY id`).map((row) => row.id),
+    )
+
+    for (const file of files) {
+      if (applied.has(file)) continue
+      const body = readFileSync(path.join(directory, file), "utf8")
       await tx.unsafe(body)
       await tx`INSERT INTO _ballm_migrations (id) VALUES (${file})`
-    })
-    console.log(`applied migration ${file}`)
-  }
+      appliedNow.push(file)
+    }
+  })
+
+  for (const file of appliedNow) console.log(`applied migration ${file}`)
 
   await ensurePartitions(sql)
 }

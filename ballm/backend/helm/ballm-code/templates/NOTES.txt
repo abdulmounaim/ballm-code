@@ -14,5 +14,7 @@
 
    helm upgrade --install ballm ./helm/ballm-code -f values.production.yaml
 
-3. The control plane owns writes; the gateway only reads. Point
+3. The console is served by the control plane at https://<controlPlaneHost>/console/.
+
+4. The control plane owns writes; the gateway only reads. Point
    DATABASE_READ_URL at the regional replica in each region.

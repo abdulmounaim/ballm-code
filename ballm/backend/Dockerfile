@@ -1,4 +1,12 @@
 # syntax=docker/dockerfile:1
+
+FROM oven/bun:1.4.4 AS console
+WORKDIR /console
+COPY console/package.json console/bun.lock ./
+RUN bun install --frozen-lockfile
+COPY console ./
+RUN bun run build
+
 FROM oven/bun:1.4.4 AS deps
 
 WORKDIR /app
@@ -13,7 +21,10 @@ RUN bun install --frozen-lockfile
 FROM deps AS runtime
 ARG SERVICE=control-plane
 ENV BALLM_SERVICE=${SERVICE}
+ENV BALLM_CONSOLE_DIR=/app/console/dist
 ENV NODE_ENV=production
+
+COPY --from=console /console/dist ./console/dist
 
 USER bun
 EXPOSE 8787 8788

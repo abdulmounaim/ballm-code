@@ -9,7 +9,7 @@ the platform team central control over catalog, policy, usage, and identity.
 
 - Terminal client (`ballm`, built from `packages/cli`)
 - Desktop app (built from `packages/desktop`)
-- Control plane and model gateway (`ballm/backend`)
+- Control plane, model gateway, and browser console (`ballm/backend`)
 - Same OpenCode agents, tools, sessions, and project configuration
 
 ## Non-goals for v1
@@ -42,6 +42,8 @@ egress rules, and device management are the authoritative controls.
   credentials are per organization.
 - **SSO from day one.** OIDC authorization code + PKCE, with group-to-role mapping.
 - **Multi-region ready.** Gateways read from regional Postgres replicas and validate JWTs locally.
+- **Human operations from a browser.** Owners and admins use `/console/`; the admin token is for
+  automation only.
 
 ## Success criteria
 

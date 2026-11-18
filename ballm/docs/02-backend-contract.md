@@ -25,7 +25,7 @@ Response:
 {
   "device_code": "opaque",
   "user_code": "ABCD-EFGH",
-  "verification_uri_complete": "https://code.ballm.internal/device?user_code=ABCD-EFGH",
+  "verification_uri_complete": "https://code.ballm.internal/console/device?user_code=ABCD-EFGH",
   "expires_in": 600,
   "interval": 5
 }
@@ -86,10 +86,12 @@ Always returns `{ "ok": true }` for an unknown token.
 
 ## Browser approval and SSO
 
-### `GET /device?user_code=...`
+### `GET /console/device?user_code=...`
 
-The browser approval page. A signed-out user enters their work email. The control plane finds the
-organization whose `allowed_domains` contains that domain and redirects to its OIDC provider.
+The browser approval page inside the console SPA. A signed-out user enters their work email. The
+control plane finds the organization whose `allowed_domains` contains that domain and redirects to
+its OIDC provider. `GET /device` returns a `302` to this route so links already printed in a terminal
+keep working.
 
 ### `GET /auth/sso/:orgSlug/start`
 
@@ -100,7 +102,8 @@ Starts the OIDC authorization-code + PKCE flow. The IdP must expose a discovery 
 
 Validates `state`, `nonce`, and the ID token, creates the user and membership, sets the
 `ballm_browser` HttpOnly cookie, and approves a pending device code when the flow started from
-`/device`.
+`/console/device`. On HTTPS the cookie is named `__Host-ballm_browser`, which pins it to the exact
+origin.
 
 ### `GET /auth/sso/me`
 
@@ -232,6 +235,51 @@ Admin routes require `Authorization: Bearer <BALLM_ADMIN_TOKEN>`.
 | PUT | `/api/v1/admin/orgs/:orgId/upstream` | set the org upstream URL and key |
 
 SSO client secrets and upstream API keys are encrypted with AES-256-GCM before storage.
+
+## Console API
+
+The console is served from `/console/` and calls `/api/console/*`. It authenticates with the
+`ballm_browser` cookie, not the admin token. Mutations require `X-Ballm-Csrf`, returned by
+`GET /api/console/session`, and an `Origin` that matches the canonical public origin or the host the
+request arrived on.
+
+```text
+GET    /api/console/session
+POST   /api/console/logout
+GET    /api/console/overview
+GET    /api/console/me
+DELETE /api/console/me/sessions/:id
+GET|POST   /api/console/members
+PATCH|DELETE /api/console/members/:userId
+GET    /api/console/models
+PUT    /api/console/models/:id
+PUT    /api/console/models
+GET|PUT /api/console/policies
+GET|PUT /api/console/sso
+POST   /api/console/sso/test
+GET|PUT /api/console/upstream
+POST   /api/console/upstream/test
+GET    /api/console/sessions
+DELETE /api/console/sessions/:id
+GET    /api/console/usage
+GET    /api/console/audit
+POST   /api/console/sign-in
+GET    /api/console/device
+POST   /api/console/device/start
+POST   /api/console/device/approve
+```
+
+Roles are `owner`, `admin`, and `member`. The server reads the role from Postgres on every request;
+the client never sends it. The last owner cannot be removed or demoted.
+
+Errors use the control-plane envelope:
+
+```json
+{ "error": "forbidden", "message": "Only an owner can change owner roles" }
+```
+
+The console shell is returned with a strict CSP, `X-Frame-Options: DENY`, `Referrer-Policy:
+no-referrer`, and HSTS when the public URL is HTTPS. API responses are `no-store`.
 
 ## Status codes the client handles
 

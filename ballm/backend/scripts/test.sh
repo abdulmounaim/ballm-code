@@ -28,8 +28,10 @@ if [[ -z "${TEST_DATABASE_URL:-}" ]]; then
   cleanup() { docker rm -f "$CONTAINER" >/dev/null 2>&1 || true; }
   trap cleanup EXIT
 
-  for _ in $(seq 1 60); do
-    if docker exec "$CONTAINER" pg_isready -U ballm -d ballm_test >/dev/null 2>&1; then break; fi
+  # pg_isready can report ready while the postmaster is still finishing recovery, so wait for a
+  # real query instead.
+  for _ in $(seq 1 120); do
+    if docker exec "$CONTAINER" psql -U ballm -d ballm_test -tAc 'select 1' >/dev/null 2>&1; then break; fi
     sleep 0.5
   done
 

@@ -16,6 +16,7 @@ curl -fsSL https://bun.sh/install | bash
 ```sh
 cd ballm/backend
 bun install
+bun install --cwd console    # console dependencies
 bun run keys                 # writes secrets/ and prints BALLM_ENCRYPTION_KEY
 cp .env.example .env         # paste the printed encryption key
 ```
@@ -45,6 +46,16 @@ bun run dev:control
 
 # terminal 4: gateway
 bun run dev:gateway
+
+# terminal 5: console (optional; the control plane serves the built assets)
+bun run --cwd console dev
+```
+
+The console dev server is `http://127.0.0.1:3001/console/` and proxies `/api` and `/auth` to the
+control plane on `:8787`. To serve the built console from the control plane instead:
+
+```sh
+bun run --cwd console build
 ```
 
 The client still starts from the repository root:
@@ -53,8 +64,9 @@ The client still starts from the repository root:
 make -C ballm dev
 ```
 
-In the TUI, connect the `Ballm` integration and approve the device at `http://localhost:8787/device`
-using `dev@ballm.internal`.
+In the TUI, connect the `Ballm` integration and approve the device at
+`http://localhost:8787/console/device` using `dev@ballm.internal`. The control plane console is at
+`http://localhost:8787/console/`.
 
 ## Backend environment
 
@@ -127,8 +139,18 @@ unmanaged machines, while managed policy still outranks it.
 
 ```sh
 make -C ballm test          # disposable Postgres, migrations, integration tests
-make -C ballm typecheck     # client core + backend
-make -C ballm verify        # backend, policy, core, schema, desktop, app, brand audit
+make -C ballm console       # production console build
+make -C ballm typecheck     # client core, backend, console
+make -C ballm verify        # backend, console, policy, core, schema, desktop, app, brand audit
+```
+
+Console-only loop:
+
+```sh
+cd ballm/backend/console
+bun run dev
+bun run typecheck
+bun test
 ```
 
 `make test` starts `postgres:17-alpine` on port 55432 and removes it afterwards. To use an existing

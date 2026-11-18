@@ -20,8 +20,8 @@ import {
 } from "../store"
 import { allowedByDomain, authorizationUrl, exchangeCode, pkce, roleForClaims, verifyIdToken } from "../sso/oidc"
 import { oidcConnection } from "../sso/connection"
+import { browserCookieName } from "../console/cookies"
 
-const BROWSER_COOKIE = "ballm_browser"
 
 export function ssoRoutes(deps: Deps) {
   const app = new Hono<{ Variables: import("../deps").Variables }>()
@@ -30,9 +30,9 @@ export function ssoRoutes(deps: Deps) {
   app.get("/auth/sso/:slug/start", async (c) => {
     const limited = await rateLimit(c, deps, "sso.start", deps.env.BALLM_AUTH_RATE_LIMIT_PER_MINUTE)
     if (limited) return limited
-    const org = await orgBySlug(deps.db.read, c.req.param("slug"))
+    const org = await orgBySlug(deps.db.write, c.req.param("slug"))
     if (!org) return c.json({ error: "not_found", message: "Unknown organization" }, 404)
-    const sso = await ssoForOrg(deps.db.read, org.id)
+    const sso = await ssoForOrg(deps.db.write, org.id)
     if (!sso?.enabled) return c.json({ error: "not_found", message: "SSO is not configured" }, 404)
 
     const { verifier, challenge } = pkce()
@@ -62,8 +62,8 @@ export function ssoRoutes(deps: Deps) {
 
     const pending = await consumeOidcState(deps.db.write, state)
     if (!pending) return c.json({ error: "invalid_request", message: "State is expired or already used" }, 400)
-    const org = await orgById(deps.db.read, pending.org_id)
-    const sso = await ssoForOrg(deps.db.read, pending.org_id)
+    const org = await orgById(deps.db.write, pending.org_id)
+    const sso = await ssoForOrg(deps.db.write, pending.org_id)
     if (!org || !sso?.enabled) return c.json({ error: "not_found", message: "Organization SSO is unavailable" }, 404)
 
     const connection = oidcConnection(sso, deps.secrets)
@@ -110,31 +110,32 @@ export function ssoRoutes(deps: Deps) {
       orgId: org.id,
       ttlSeconds: deps.env.BALLM_BROWSER_TTL,
     })
-    setCookie(c, BROWSER_COOKIE, browser.cookie, {
+    setCookie(c, browserCookieName(deps.env.BALLM_PUBLIC_URL), browser.cookie, {
       maxAge: deps.env.BALLM_BROWSER_TTL,
       secure: secureCookie(),
     })
     await audit(deps.db.write, { kind: "auth.sso", orgId: org.id, userId: user.id })
 
-    if (pending.device_code_hash) return c.redirect(`/device/success?user_code=${encodeURIComponent(pending.user_code ?? "")}`)
-    return c.redirect("/auth/sso/me")
+    if (pending.device_code_hash)
+      return c.redirect(`/console/device/success?user_code=${encodeURIComponent(pending.user_code ?? "")}`)
+    return c.redirect("/console/")
   })
 
   app.get("/auth/sso/me", async (c) => {
-    const browser = await browserSession(deps.db.read, readCookie(c, BROWSER_COOKIE))
+    const browser = await browserSession(deps.db.write, readCookie(c, browserCookieName(deps.env.BALLM_PUBLIC_URL)))
     if (!browser) return c.json({ error: "unauthorized" }, 401)
-    const [user] = await deps.db.read<{ id: string; email: string; name: string | null }[]>`
+    const [user] = await deps.db.write<{ id: string; email: string; name: string | null }[]>`
       SELECT id, email, name FROM users WHERE id = ${browser.user_id} LIMIT 1
     `
-    return c.json({ user, orgs: await orgsForUser(deps.db.read, browser.user_id) })
+    return c.json({ user, orgs: await orgsForUser(deps.db.write, browser.user_id) })
   })
 
   app.get("/auth/sso/logout", async (c) => {
-    const cookie = readCookie(c, BROWSER_COOKIE)
+    const cookie = readCookie(c, browserCookieName(deps.env.BALLM_PUBLIC_URL))
     const browser = await browserSession(deps.db.write, cookie)
     if (browser) await deps.db.write`UPDATE browser_sessions SET revoked_at = now() WHERE id = ${browser.id}`
-    clearCookie(c, BROWSER_COOKIE, secureCookie())
-    return c.redirect("/device")
+    clearCookie(c, browserCookieName(deps.env.BALLM_PUBLIC_URL), secureCookie())
+    return c.redirect("/console/")
   })
 
   /**
@@ -146,7 +147,7 @@ export function ssoRoutes(deps: Deps) {
     const body = await c.req.json().catch(() => ({})) as Record<string, unknown>
     const email = typeof body.email === "string" ? body.email : "dev@ballm.internal"
     const slug = typeof body.org === "string" ? body.org : deps.env.BALLM_BOOTSTRAP_ORG_SLUG
-    const org = await orgBySlug(deps.db.read, slug)
+    const org = await orgBySlug(deps.db.write, slug)
     if (!org) return c.json({ error: "not_found", message: "Unknown organization" }, 404)
     const user = await findOrCreateUser(deps.db.write, { email })
     await ensureMembership(deps.db.write, user.id, org.id, "owner")
@@ -155,7 +156,7 @@ export function ssoRoutes(deps: Deps) {
       orgId: org.id,
       ttlSeconds: deps.env.BALLM_BROWSER_TTL,
     })
-    setCookie(c, BROWSER_COOKIE, browser.cookie, {
+    setCookie(c, browserCookieName(deps.env.BALLM_PUBLIC_URL), browser.cookie, {
       maxAge: deps.env.BALLM_BROWSER_TTL,
       secure: secureCookie(),
     })

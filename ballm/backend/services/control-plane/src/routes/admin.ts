@@ -114,9 +114,11 @@ export function adminRoutes(deps: Deps) {
   })
 
   app.post("/api/v1/admin/users/:userId/revoke", async (c) => {
-    const sessions = await revokeUserSessions(deps.db.write, c.req.param("userId"))
+    const userId = c.req.param("userId")
+    const sessions = await revokeUserSessions(deps.db.write, userId)
     await Promise.all(sessions.map((id) => deps.cache.set(`ballm:revoked:${id}`, "1", deps.env.BALLM_ACCESS_TTL)))
-    await audit(deps.db.write, { kind: "admin.user.revoke", detail: { userId: c.req.param("userId") } })
+    await deps.db.write`UPDATE browser_sessions SET revoked_at = now() WHERE user_id = ${userId} AND revoked_at IS NULL`
+    await audit(deps.db.write, { kind: "admin.user.revoke", detail: { userId } })
     return c.json({ ok: true, revokedSessions: sessions.length })
   })
 

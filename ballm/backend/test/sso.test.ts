@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import { SignJWT, exportJWK, generateKeyPair } from "jose"
+import { ensureMembership, findOrCreateUser } from "../services/control-plane/src/store"
 import { adminToken, createTestOrg, setupContext, type TestContext } from "./helpers"
 
 interface MockOidc {
@@ -61,10 +62,6 @@ async function mockOidc(): Promise<MockOidc> {
   }
 }
 
-function form(values: Record<string, string>) {
-  return new URLSearchParams(values)
-}
-
 function cookie(response: Response) {
   return response.headers.get("set-cookie")?.split(";")[0] ?? ""
 }
@@ -114,13 +111,13 @@ describe("SSO device approval", () => {
     })
     const device = (await code.json()) as { user_code: string; device_code: string }
 
-    const approval = await ctx.app.request("/device", {
+    const approval = await ctx.app.request("/api/console/device/start", {
       method: "POST",
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body: form({ user_code: device.user_code, email: "dev@test.internal" }).toString(),
+      headers: { "content-type": "application/json", origin: "http://localhost:8787" },
+      body: JSON.stringify({ userCode: device.user_code, email: "dev@test.internal" }),
     })
-    expect(approval.status).toBe(302)
-    expect(approval.headers.get("location")).toContain("/authorize")
+    expect(approval.status).toBe(200)
+    expect(((await approval.json()) as { redirectUrl: string }).redirectUrl).toContain("/authorize")
 
     const state = await ctx.db.read<{ state: string; nonce: string }[]>`
       SELECT state, nonce FROM oidc_states ORDER BY created_at DESC LIMIT 1
@@ -146,6 +143,40 @@ describe("SSO device approval", () => {
     const tokens = (await issued.json()) as { access_token: string }
     const user = await ctx.app.request("/api/user", { headers: { authorization: `Bearer ${tokens.access_token}` } })
     expect(((await user.json()) as { email: string }).email).toBe("dev@test.internal")
+  })
+
+  test("preserves a manually assigned role when no group mapping is configured", async () => {
+    const { org } = await createTestOrg(ctx, { slug: "nomap", name: "No Mapping", model: { id: "ballm-fast" } })
+    const response = await ctx.app.request(`/api/v1/admin/orgs/${org.id}/sso`, {
+      method: "PUT",
+      headers: { authorization: `Bearer ${adminToken}`, "content-type": "application/json" },
+      body: JSON.stringify({
+        issuer: oidc.url,
+        clientId: "test-client",
+        clientSecret: "test-secret",
+        allowedDomains: ["test.internal"],
+      }),
+    })
+    expect(response.status).toBe(200)
+
+    const owner = await findOrCreateUser(ctx.db.write, { email: "dev@test.internal" })
+    await ensureMembership(ctx.db.write, owner.id, org.id, "owner")
+
+    const start = await ctx.app.request("/auth/sso/nomap/start")
+    expect(start.status).toBe(302)
+    const state = await ctx.db.read<{ state: string; nonce: string }[]>`
+      SELECT state, nonce FROM oidc_states ORDER BY created_at DESC LIMIT 1
+    `
+    oidc.setNonce(state[0]!.nonce)
+    const callback = await ctx.app.request(
+      `/auth/sso/callback?code=test-code&state=${encodeURIComponent(state[0]!.state)}`,
+    )
+    expect(callback.status).toBe(302)
+
+    const membership = await ctx.db.read<{ role: string }[]>`
+      SELECT role FROM memberships WHERE user_id = ${owner.id} AND org_id = ${org.id}
+    `
+    expect(membership[0]?.role).toBe("owner")
   })
 
   test("creates a browser session and rejects a disallowed email domain", async () => {
