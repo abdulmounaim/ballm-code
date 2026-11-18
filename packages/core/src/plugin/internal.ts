@@ -108,7 +108,6 @@ import { McpCodeModeDefaultsPlugin } from "./mcp-codemode-defaults.js"
 import { BallmPlugin } from "../ballm/index.js"
 import { ProviderPlugins } from "./provider.js"
 import { DynamicProviderPlugin } from "./provider/dynamic.js"
-import { OpencodePlugin } from "./provider/opencode.js"
 import { WebSearchPlugins } from "./websearch/index.js"
 import { SkillPlugin } from "./skill.js"
 import { VcsHgPlugin } from "./vcs/hg.js"
@@ -305,13 +304,10 @@ const post = [
   ConfigPolicyPlugin.Plugin,
 ] as const satisfies readonly InternalPlugin[]
 
-// Repository config must not switch off policy enforcement, the Ballm connection, or the Console
-// connection that delivers organization statements, so plugin remove operations skip these IDs.
-export const guarded: ReadonlySet<string> = new Set([
-  BallmPlugin.id,
-  OpencodePlugin.id,
-  ConfigPolicyPlugin.Plugin.id,
-])
+// Repository config must not switch off policy enforcement or the Ballm connection that delivers
+// organization statements, so plugin remove operations skip these IDs. The upstream Console plugin
+// is not part of the Ballm distribution; the Ballm integration replaces it.
+export const guarded: ReadonlySet<string> = new Set([BallmPlugin.id, ConfigPolicyPlugin.Plugin.id])
 
 export const list = Effect.fn("PluginInternal.list")(function* () {
   // Capture only services; activation supplies the child Scope and batching context.
