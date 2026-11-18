@@ -4,8 +4,14 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 cd "$ROOT"
 
-# TODO(ballm): set appId, productName, icons, and the publish feed in
-# packages/desktop/electron-builder.config.ts before producing a release build.
-bun run --cwd packages/desktop build
+export OPENCODE_CHANNEL="${OPENCODE_CHANNEL:-prod}"
+export OPENCODE_VERSION="${OPENCODE_VERSION:-2.3.0}"
 
-echo "Desktop artifacts are under packages/desktop/dist"
+if [[ ! -d packages/cli/dist ]]; then
+  echo "Building the CLI first: production desktop builds bundle it."
+  "$ROOT/ballm/distro/scripts/build-cli.sh"
+fi
+
+bun run --cwd packages/desktop pack
+
+echo "Desktop artifacts are under dist/desktop"

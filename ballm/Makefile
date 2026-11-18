@@ -2,11 +2,12 @@ SHELL := /bin/bash
 ROOT := $(shell cd .. && pwd)
 BUN ?= bun
 
-.PHONY: bootstrap dev backend test verify typecheck build-cli build-desktop sync release clean
+.PHONY: bootstrap dev backend test verify typecheck icons build-cli build-desktop sync release clean
 
 bootstrap:
 	cd $(ROOT) && $(BUN) install
 	cd backend && $(BUN) install
+	cd distro && $(BUN) install
 
 dev:
 	cd $(ROOT) && $(BUN) run dev
@@ -23,6 +24,9 @@ typecheck:
 verify:
 	./distro/scripts/verify.sh
 
+icons:
+	cd distro && $(BUN) run icons
+
 build-cli:
 	./distro/scripts/build-cli.sh
 
@@ -36,4 +40,4 @@ release:
 	./distro/scripts/release.sh "$(TAG)"
 
 clean:
-	rm -rf backend/ballm.db backend/node_modules dist
+	rm -rf backend/ballm.db backend/node_modules distro/node_modules dist

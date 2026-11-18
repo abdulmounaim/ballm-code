@@ -18,6 +18,7 @@ fi
 
 bun install
 (cd ballm/backend && bun install)
+(cd ballm/distro && bun install)
 
 if [[ ! -f ballm/backend/.env ]]; then
   cp ballm/backend/.env.example ballm/backend/.env

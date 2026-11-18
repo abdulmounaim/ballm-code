@@ -13,9 +13,9 @@ import { CLI_BINARIES, nodePtyPackage } from "./script/utils"
 const { FileMatcher } = createRequire(import.meta.resolve("electron-builder"))("app-builder-lib/out/fileMatcher")
 
 const channels = [
-  { channel: "dev", appId: "ai.opencode.desktop.dev", feed: "dev" },
-  { channel: "beta", appId: "ai.opencode.desktop.beta", feed: "beta" },
-  { channel: "prod", appId: "ai.opencode.desktop", feed: "latest" },
+  { channel: "dev", appId: "com.ballm.code.dev", feed: "dev" },
+  { channel: "beta", appId: "com.ballm.code.beta", feed: "beta" },
+  { channel: "prod", appId: "com.ballm.code", feed: "prod" },
 ] as const
 
 function load(channel: string, target?: string): Configuration {
@@ -53,14 +53,16 @@ test.each(channels)("channel identity for $channel", ({ channel, appId, feed }) 
   // Every published channel updates from its own feed on the update service.
   expect(config.publish).toEqual({
     provider: "generic",
-    url: `https://opencode.ai/update/api/${feed}/desktop/opencode/`,
+    url: `https://updates.ballm.internal/desktop/${feed}/`,
     channel: "latest",
   })
   expect(config.extraMetadata?.desktopName).toBe(`${appId}.desktop`)
+  expect(config.artifactName).toBe("ballm-code-${os}-${arch}.${ext}")
+  expect(config.protocols).toEqual({ name: expect.any(String), schemes: ["ballm"] })
   // The executable must never end in `.desktop`: libappimage resolves the
   // AppImage's desktop entry by globbing `*.desktop`, and an ELF matching
   // that glob breaks integration (anomalyco/opencode#51867).
-  expect(config.linux?.executableName).toBe(appId.replace(/\.desktop$/, ""))
+  expect(config.linux?.executableName).toBe("ballm-code")
   expect(config.linux?.executableName).not.toMatch(/\.desktop$/)
   // The installed `.desktop` filename still derives from `desktopName` so
   // window association (StartupWMClass/desktop file basename) is unchanged.
@@ -69,9 +71,7 @@ test.each(channels)("channel identity for $channel", ({ channel, appId, feed }) 
 
   for (const fpm of [config.deb?.fpm, config.rpm?.fpm]) {
     expect(fpm).toContainEqual(expect.stringContaining(`/usr/share/metainfo/${appId}.metainfo.xml`))
-    expect(
-      fpm?.some((entry) => entry.endsWith("opencode-desktop.desktop=/usr/share/applications/opencode-desktop.desktop")),
-    ).toBe(channel === "prod")
+    expect(fpm?.some((entry) => entry.includes("opencode-desktop.desktop"))).toBe(false)
   }
 
   // Shared Electron binaries must not ship /usr/lib/.build-id links that collide with other Electron RPMs.
@@ -80,18 +80,10 @@ test.each(channels)("channel identity for $channel", ({ channel, appId, feed }) 
   expect(config.deb?.fpm).not.toContain("--rpm-rpmbuild-define=_build_id_links none")
 })
 
-test("legacy Linux launcher stays hidden", async () => {
-  const desktop = await Bun.file(path.join(import.meta.dirname, "resources/linux/opencode-desktop.desktop")).text()
-  expect(desktop).toContain("Exec=/opt/OpenCode/ai.opencode %U")
-  expect(desktop).toContain("Icon=ai.opencode")
-  expect(desktop).toContain("StartupWMClass=ai.opencode.desktop")
-  expect(desktop).toContain("NoDisplay=true")
-})
-
 test.each(channels)("macOS bundle for $channel", ({ channel }) => {
   const config = load(channel)
-  expect(config.mac?.icon).toBe(channel === "prod" ? "resources/icons/icon.icon" : "resources/icons/icon.icns")
-  expect(config.dmg?.icon).toBe(channel === "prod" ? "resources/icons/icon.icns" : undefined)
+  expect(config.mac?.icon).toBe("resources/icons/icon.icns")
+  expect(config.dmg?.icon).toBeUndefined()
   // The prod override must keep the rest of the shared macOS settings.
   expect(config.mac?.target).toEqual(["dmg", "zip"])
 
@@ -104,13 +96,6 @@ test.each(channels)("macOS bundle for $channel", ({ channel }) => {
     "NSRemovableVolumesUsageDescription",
   ])
     expect(config.mac?.extendInfo?.[key], key).toMatch(/\S/)
-})
-
-test("the production Icon Composer package references its bundled artwork", async () => {
-  const icon = await Bun.file(path.join(import.meta.dirname, "icons/prod/icon.icon/icon.json")).json()
-  expect(icon["supported-platforms"]).toEqual({ squares: ["macOS"] })
-  const image = icon.groups[0].layers[0]["image-name"]
-  expect(await Bun.file(path.join(import.meta.dirname, "icons/prod/icon.icon/Assets", image)).exists()).toBe(true)
 })
 
 test("shared packaging defaults", async () => {

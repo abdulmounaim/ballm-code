@@ -5,7 +5,7 @@ import { Dialog } from "@opencode/ui/dialog"
 import { usePlugin, type DialogHandle, type SetupContext } from "@opencode/plugin/gui"
 import type definition from "./index"
 
-const CHANGELOG_URL = "https://opencode.ai/changelog.json"
+const CHANGELOG_URL = "https://code.ballm.internal/changelog.json"
 
 export type Highlight = {
   title: string

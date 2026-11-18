@@ -1,0 +1,16 @@
+{
+  "name": "@ballm/distro",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "icons": "bun run scripts/icons.ts"
+  },
+  "dependencies": {
+    "@resvg/resvg-js": "2.6.2",
+    "png2icons": "2.0.1"
+  },
+  "devDependencies": {
+    "@types/bun": "1.4.3",
+    "typescript": "5.9.3"
+  }
+}

@@ -7,8 +7,20 @@ cd "$ROOT"
 echo "== backend tests =="
 (cd ballm/backend && bun test)
 
+echo "== policy tests =="
+(cd ballm/tests && bun test e2e)
+
 echo "== core typecheck =="
 (cd packages/core && bun typecheck)
+
+echo "== brand typecheck =="
+(cd packages/schema && bun typecheck && bun test test/brand.test.ts)
+
+echo "== desktop typecheck =="
+(cd packages/desktop && bun typecheck)
+
+echo "== app typecheck =="
+(cd packages/app && bun typecheck)
 
 echo "== managed policy JSON =="
 for file in ballm/managed/linux/opencode.jsonc ballm/managed/windows/opencode.jsonc; do

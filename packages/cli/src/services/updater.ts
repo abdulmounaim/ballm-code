@@ -1,3 +1,4 @@
+import { Brand } from "@opencode/schema/brand"
 import { Global } from "@opencode/util/global"
 import { AppProcess } from "@opencode/util/process"
 import { EffectFlock } from "@opencode/util/effect-flock"
@@ -46,7 +47,7 @@ const decodeVpPackages = Schema.decodeUnknownOption(
 )
 
 const installNames: Record<Method, string> = {
-  curl: "The OpenCode installer",
+  curl: "The Ballm Code installer",
   npm: "npm",
   pnpm: "pnpm",
   bun: "Bun",
@@ -56,7 +57,7 @@ const installNames: Record<Method, string> = {
   winget: "WinGet",
 }
 
-const wingetPackage = "Anomaly.OpenCode"
+const wingetPackage = "Ballm.Code"
 const wingetArgs = [
   "--id",
   wingetPackage,
@@ -211,13 +212,28 @@ const make = Effect.gen(function* () {
     )
   })
 
+  // Ballm Code is updated through the desktop app and the internal feed. Never run an upstream
+  // package-manager or installer path that could replace the branded client.
+  const managedByBallm = process.env.OPENCODE_MANAGED_UPDATES !== "0"
+
+  const managedUpdate = () =>
+    new UpgradeError({
+      title: `Updates are managed by ${Brand.name}`,
+      detail: `Install updates through ${Brand.name} Desktop or your administrator.`,
+      retry: "Reopen Ballm Code after the app updates.",
+    })
+
   const method = Effect.fnUntraced(function* () {
+    if (managedByBallm) return undefined
     if (executable === curlBinary) return "curl"
     if (installedFormula) return "brew"
     if (installedWinget) return "winget"
     if (!installedPackage) return
 
-    const parts = executable.toLowerCase().split(path.sep).map((part) => part.replace(/^\./, ""))
+    const parts = executable
+      .toLowerCase()
+      .split(path.sep)
+      .map((part) => part.replace(/^\./, ""))
     const checks: Array<{ method: Method; command: string[] }> = [
       { method: "npm", command: ["npm", "list", "-g", "--depth=0", installedPackage] },
       { method: "pnpm", command: ["pnpm", "list", "-g", "--depth=0", installedPackage] },
@@ -423,6 +439,7 @@ const make = Effect.gen(function* () {
   }
 
   const upgrade = Effect.fnUntraced(function* (method: Method, input: string) {
+    if (managedByBallm) return yield* Effect.fail(managedUpdate())
     if (!parseReleaseVersion(input)) return yield* Effect.fail(new Error(`Invalid version: ${input}`))
     const version = input.trim().replace(/^v/, "")
     const packageName =
@@ -575,6 +592,7 @@ const make = Effect.gen(function* () {
   })
 
   const apply = Effect.fn("cli.updater.apply")(function* (version: string) {
+    if (managedByBallm) return yield* Effect.fail(managedUpdate())
     if (!(yield* install(version)))
       return yield* Effect.fail(
         new Error(
@@ -584,6 +602,7 @@ const make = Effect.gen(function* () {
   })
 
   const check = Effect.fn("cli.updater.check")(function* () {
+    if (managedByBallm) return undefined
     if (OPENCODE_LOCAL)
       return {
         type: "unavailable" as const,
@@ -610,6 +629,7 @@ const make = Effect.gen(function* () {
 
   const run = Effect.fn("cli.updater.run")(
     function* (onInstall: (version: string) => void = () => {}) {
+      if (managedByBallm) return undefined
       const result = yield* inspect()
       if (!result) return undefined
       if (result.policy === "notify") return { type: "available" as const, version: result.version }

@@ -6,7 +6,8 @@
   "license": "MIT",
   "bin": {
     "opencode": "./bin/opencode.cjs",
-    "opencode2": "./bin/opencode2.cjs"
+    "opencode2": "./bin/opencode2.cjs",
+    "ballm": "./bin/opencode.cjs"
   },
   "files": [
     "bin"
@@ -86,5 +87,6 @@
     "type": "git",
     "url": "git+https://github.com/anomalyco/opencode.git",
     "directory": "packages/cli"
-  }
+  },
+  "description": "Ballm Code command line interface"
 }

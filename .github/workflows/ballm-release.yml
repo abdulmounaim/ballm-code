@@ -3,9 +3,13 @@ name: ballm-release
 on:
   workflow_dispatch:
     inputs:
-      tag:
-        description: "Release tag, for example 2.2.5-ballm.1"
+      version:
+        description: "Plain semver release version, for example 2.3.0"
         required: true
+      publish:
+        description: "Upload artifacts and latest*.yml to the Ballm feed"
+        type: boolean
+        default: false
 
 jobs:
   cli:
@@ -15,15 +19,24 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x64
+            cliTarget: linux-x64-baseline
           - os: ubuntu-24.04-arm
             target: linux-arm64
+            cliTarget: linux-arm64
           - os: macos-14
             target: darwin-arm64
+            cliTarget: darwin-arm64
           - os: macos-13
             target: darwin-x64
+            cliTarget: darwin-x64-baseline
           - os: windows-latest
             target: windows-x64
+            cliTarget: windows-x64-baseline
     runs-on: ${{ matrix.os }}
+    env:
+      OPENCODE_CHANNEL: prod
+      OPENCODE_VERSION: ${{ inputs.version }}
+      OPENCODE_TARGET: ${{ matrix.cliTarget }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -37,28 +50,78 @@ jobs:
           path: packages/cli/dist/**
 
   desktop:
+    needs: cli
     strategy:
       fail-fast: false
       matrix:
         include:
           - os: macos-14
-            target: macos
+            target: darwin-arm64
+            cliTarget: darwin-arm64
+            platform: mac
+          - os: macos-13
+            target: darwin-x64
+            cliTarget: darwin-x64-baseline
+            platform: mac
           - os: windows-latest
-            target: windows
+            target: windows-x64
+            cliTarget: windows-x64-baseline
+            platform: win
           - os: ubuntu-latest
-            target: linux
+            target: linux-x64
+            cliTarget: linux-x64-baseline
+            platform: linux
+          - os: ubuntu-24.04-arm
+            target: linux-arm64
+            cliTarget: linux-arm64
+            platform: linux
     runs-on: ${{ matrix.os }}
+    env:
+      OPENCODE_CHANNEL: prod
+      OPENCODE_VERSION: ${{ inputs.version }}
+      OPENCODE_TARGET: ${{ matrix.target }}
+      OPENCODE_NOTARIZE: ${{ matrix.platform == 'mac' && '1' || '0' }}
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: "1.4.4"
+
       - run: bun install
-      - run: bun run --cwd packages/desktop build
+
+      # Production desktop builds bundle the CLI from packages/cli/dist.
+      - run: bun run --cwd packages/cli build
         env:
-          # TODO(ballm): replace with the internal signing and notarization secrets.
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          OPENCODE_TARGET: ${{ matrix.cliTarget }}
+
+      - name: Prepare desktop resources
+        run: bun run --cwd packages/desktop build
+
+      - name: Package
+        run: bunx electron-builder --${{ matrix.platform }} --publish never --config electron-builder.config.ts
+        working-directory: packages/desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
       - uses: actions/upload-artifact@v4
         with:
           name: ballm-desktop-${{ matrix.target }}
           path: packages/desktop/dist/**
+
+      - name: Publish to the Ballm feed
+        if: ${{ inputs.publish }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BALLM_UPDATE_AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BALLM_UPDATE_AWS_SECRET_ACCESS_KEY }}
+          AWS_ENDPOINT_URL: ${{ secrets.BALLM_UPDATE_ENDPOINT }}
+          BALLM_UPDATE_BUCKET: ${{ secrets.BALLM_UPDATE_BUCKET }}
+        run: |
+          # Upload only installer, blockmap, and updater manifest files.
+          find packages/desktop/dist -maxdepth 1 -type f \
+            \( -name '*.exe' -o -name '*.dmg' -o -name '*.zip' -o -name '*.AppImage' -o -name '*.deb' \
+               -o -name '*.rpm' -o -name '*.blockmap' -o -name 'latest*.yml' \) \
+            -exec aws s3 cp {} "s3://$BALLM_UPDATE_BUCKET/desktop/prod/" \;

@@ -5,7 +5,8 @@ import { existsSync, readFileSync } from "node:fs"
 import { promisify } from "node:util"
 import { app } from "electron"
 import { Context, Effect, FileSystem, Layer, Option, Path, Schema } from "effect"
-import installer from "../../../../../install?raw"
+import installer from "../../../resources/install-ballm.sh?raw"
+import { Brand } from "@opencode/schema/brand"
 import { DesktopPaths } from "../paths"
 import { BUNDLED_CLI_VERSION_KEY } from "../storage/keys"
 import { getStore } from "../storage/store"
@@ -48,7 +49,7 @@ export const layer = Layer.effect(
       const home = app.getPath("home")
       yield* runInstaller(cli.binary, home)
 
-      return path.join(home, ".opencode", "bin", "opencode")
+      return path.join(home, Brand.cli.installDir, "bin", Brand.cli.command)
     })
 
     return Service.of({ resolve, install })
@@ -193,7 +194,7 @@ const run = Effect.fn("DesktopCli.run")(function* (binary: string, args: string[
   return stdout
 })
 
-// The installer runs `opencode --version`, which can take several seconds on first run while Gatekeeper scans it.
+// The installer runs `ballm --version`, which can take several seconds on first run while Gatekeeper scans it.
 const INSTALL_TIMEOUT_MS = 60_000
 
 const runInstaller = Effect.fn("DesktopCli.installForUser")(function* (binary: string, home: string) {
@@ -214,7 +215,7 @@ const runInstaller = Effect.fn("DesktopCli.installForUser")(function* (binary: s
     child.stdin.on("error", () => {})
     child.stdin.end(installer)
 
-    // A timeout or the app quitting leaves no installer writing into ~/.opencode behind.
+    // A timeout or the app quitting leaves no installer writing into ~/.ballm behind.
     return Effect.sync(() => {
       if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL")
     })

@@ -1,13 +1,13 @@
 {
+  "$schema": "https://json.schemastore.org/package.json",
   "name": "@opencode/desktop",
   "private": true,
   "version": "2.2.5",
   "type": "module",
   "license": "MIT",
-  "homepage": "https://opencode.ai",
+  "homepage": "https://code.ballm.internal",
   "author": {
-    "name": "OpenCode",
-    "email": "hello@opencode.ai"
+    "name": "Ballm"
   },
   "scripts": {
     "typecheck": "bun check --no-script -b",
@@ -63,5 +63,6 @@
     "@lydell/node-pty-linux-x64": "1.2.0-beta.12",
     "@lydell/node-pty-win32-arm64": "1.2.0-beta.12",
     "@lydell/node-pty-win32-x64": "1.2.0-beta.12"
-  }
+  },
+  "description": "Ballm Code desktop client"
 }

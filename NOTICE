@@ -1,0 +1,16 @@
+Ballm Code
+==========
+
+Ballm Code is an internal distribution built on OpenCode.
+
+OpenCode
+--------
+Copyright (c) Anomaly Innovations, Inc. and contributors.
+Licensed under the MIT License. See LICENSE.
+
+The OpenCode name, logo, and related marks belong to their respective owners. Ballm Code retains the
+upstream MIT license and third-party notices. The Ballm integration, branding assets, control-plane
+service, and distribution scripts are Ballm-specific additions.
+
+Third-party software included in this distribution remains under its own license. The in-app
+"Third-party notices" dialog lists the bundled dependencies and their license texts.

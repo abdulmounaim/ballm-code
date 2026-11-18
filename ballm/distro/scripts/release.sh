@@ -6,9 +6,18 @@ cd "$ROOT"
 
 TAG="${1:-}"
 if [[ -z "$TAG" ]]; then
-  echo "usage: $0 <tag>   e.g. $0 2.2.5-ballm.1" >&2
+  echo "usage: $0 <version>   e.g. $0 2.3.0" >&2
   exit 1
 fi
+
+# Electron's updater treats a prerelease suffix as a prerelease build. Ship plain semver.
+if [[ ! "$TAG" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "release version must be plain semver, for example 2.3.0" >&2
+  exit 1
+fi
+
+export OPENCODE_VERSION="$TAG"
+export OPENCODE_CHANNEL="${OPENCODE_CHANNEL:-prod}"
 
 OUT="ballm/dist"
 mkdir -p "$OUT"
@@ -24,7 +33,7 @@ echo "== build desktop =="
 
 echo "== stage artifacts =="
 cp -R packages/cli/dist "$OUT/cli" 2>/dev/null || true
-cp -R packages/desktop/dist "$OUT/desktop" 2>/dev/null || true
+cp -R dist/desktop "$OUT/desktop" 2>/dev/null || true
 cp -R ballm/managed "$OUT/managed"
 
 cat > "$OUT/release.json" <<EOF
@@ -36,4 +45,4 @@ cat > "$OUT/release.json" <<EOF
 }
 EOF
 
-echo "staged $OUT. Upload with your artifact tool, then point the update feed at $TAG."
+echo "staged $OUT. Upload installers and latest*.yml with your artifact tool."
