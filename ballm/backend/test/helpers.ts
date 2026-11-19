@@ -52,6 +52,7 @@ export function baseEnv() {
     BALLM_LOG_LEVEL: "error" as const,
     BALLM_PUBLIC_URL: "http://localhost:8787",
     BALLM_GATEWAY_PUBLIC_URL: "http://localhost:8788",
+    BALLM_GATEWAY_INTERNAL_URL: undefined,
     DATABASE_URL: process.env.TEST_DATABASE_URL!,
     DATABASE_READ_URL: undefined,
     BALLM_DB_POOL_MAX: 5,

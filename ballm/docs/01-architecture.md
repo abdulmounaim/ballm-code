@@ -57,7 +57,9 @@
 - rate limiting and usage recording;
 - streaming pass-through and SSE usage capture.
 
-Both services are stateless and can run as many replicas as needed.
+Both services are stateless and can run as many replicas as needed. For single-domain deployments,
+set `BALLM_GATEWAY_INTERNAL_URL` on the control plane; it proxies `/v1/*` to the internal gateway so
+only the control-plane hostname is public.
 
 ## Client request path
 

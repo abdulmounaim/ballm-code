@@ -22,6 +22,10 @@ pinned base in `upstream.lock`.
 - Device approval moved into the console; `/device` redirects to `/console/device`.
 - Console API with browser-cookie auth, per-session CSRF tokens, origin checks, server-side RBAC,
   strict CSP and security headers, secret redaction, and an audit event for every mutation.
+- Single-domain deployments: `BALLM_GATEWAY_INTERNAL_URL` makes the control plane proxy `/v1/*` to
+  the internal gateway, so one hostname and one TLS certificate serve the console, API, and models.
+- Coolify deployment guide for two applications, managed PostgreSQL and Redis, and a single public
+  domain.
 - `make -C ballm brand-audit` and `ballm/distro/scripts/brand-audit.ts`: enforce Ballm app IDs,
   update feeds, deep links, generated icons, shell titles, and managed-policy statements.
 - Project layout under `ballm/` with backend, managed policy, distro, docs, and tests.

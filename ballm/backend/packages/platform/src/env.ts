@@ -29,6 +29,7 @@ const baseSchema = z.object({
   BALLM_LOG_LEVEL: z.enum(["debug", "info", "warn", "error"]).default("info"),
   BALLM_PUBLIC_URL: z.string().url().default("http://localhost:8787"),
   BALLM_GATEWAY_PUBLIC_URL: z.string().url().default("http://localhost:8788"),
+  BALLM_GATEWAY_INTERNAL_URL: optionalString,
   DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
   DATABASE_READ_URL: optionalString,
   BALLM_DB_POOL_MAX: integer(20),

@@ -6,6 +6,7 @@ import { adminRoutes } from "./routes/admin"
 import { configRoutes } from "./routes/config"
 import { consoleRoutes } from "./routes/console"
 import { deviceRoutes } from "./routes/device"
+import { gatewayProxyRoutes } from "./routes/gateway-proxy"
 import { directoryRoutes } from "./routes/directory"
 import { healthRoutes } from "./routes/health"
 import { jwksRoutes } from "./routes/jwks"
@@ -64,6 +65,7 @@ export function createApp(deps: Deps) {
   app.route("/", configRoutes(deps))
   app.route("/", adminRoutes(deps))
   app.route("/", consoleRoutes(deps))
+  gatewayProxyRoutes(app, deps)
   consoleStaticRoutes(app, deps)
 
   app.get("/", (c) =>

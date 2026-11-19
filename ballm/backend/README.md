@@ -57,6 +57,7 @@ bun run dev:gateway
 | `BALLM_PUBLIC_URL` | Control-plane public URL and console origin, used in device and SSO redirects |
 | `BALLM_CONSOLE_DIR` | Built console directory; defaults to `console/dist` |
 | `BALLM_GATEWAY_PUBLIC_URL` | Gateway URL returned in remote config |
+| `BALLM_GATEWAY_INTERNAL_URL` | Optional internal gateway URL; when set, the control plane proxies `/v1/*` for single-domain deployments |
 | `DATABASE_URL` | Postgres primary; control plane writes here |
 | `DATABASE_READ_URL` | Optional regional read replica for the gateway |
 | `REDIS_URL` | Shared cache, rate limits, revocation, invalidation |
@@ -134,6 +135,13 @@ bun run --cwd console test     # formatting unit tests
 Security controls are layered: `HttpOnly` browser cookie, a per-session CSRF token, an
 Origin/Sec-Fetch-Site check, server-side role checks on every request, a strict Content Security
 Policy, and no secrets in client storage. See `../docs/08-console.md`.
+
+## Single-domain deployment
+
+Set `BALLM_GATEWAY_INTERNAL_URL=http://gateway:8788` on the control plane and point
+`BALLM_GATEWAY_PUBLIC_URL` at the control plane origin. Clients receive `https://host/v1`, the
+control plane proxies `/v1/*` to the internal gateway, and only one public hostname and TLS
+certificate are needed. Without it, expose the gateway on its own hostname.
 
 ## Multi-region
 
