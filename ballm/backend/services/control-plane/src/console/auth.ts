@@ -97,13 +97,14 @@ export function consoleContext(c: Context<{ Variables: import("../deps").Variabl
   return context
 }
 
-export function capabilities(role: Role) {
+export function capabilities(role: Role, kind: "personal" | "team") {
+  const team = kind === "team"
   return {
-    manageMembers: role === "owner" || role === "admin",
-    manageOwners: role === "owner",
+    manageMembers: team && (role === "owner" || role === "admin"),
+    manageOwners: team && role === "owner",
     manageModels: role === "owner" || role === "admin",
     managePolicies: role === "owner" || role === "admin",
-    manageSso: role === "owner" || role === "admin",
+    manageSso: team && (role === "owner" || role === "admin"),
     manageUpstream: role === "owner" || role === "admin",
     viewAudit: role === "owner" || role === "admin",
     viewUsage: role === "owner" || role === "admin",

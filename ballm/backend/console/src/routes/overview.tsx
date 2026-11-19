@@ -24,16 +24,22 @@ export function OverviewPage() {
     <div class="space-y-6">
       <PageHeader
         eyebrow="Overview"
-        title="Organization overview"
-        description={`Access, model usage, and configuration health for ${session.org()?.name ?? "this organization"}.`}
+        title={session.org()?.kind === "personal" ? "Your workspace" : "Organization overview"}
+        description={
+          session.org()?.kind === "personal"
+            ? `Model usage and configuration for ${session.org()?.name ?? "this workspace"}.`
+            : `Access, model usage, and configuration health for ${session.org()?.name ?? "this organization"}.`
+        }
         actions={
           <>
             <Button onClick={() => navigate("/usage")}>
               <Icon name="chart" class="size-4" /> Usage
             </Button>
-            <Button variant="primary" onClick={() => navigate("/members")}>
-              <Icon name="plus" class="size-4" /> Add member
-            </Button>
+            <Show when={session.org()?.kind === "team"}>
+              <Button variant="primary" onClick={() => navigate("/members")}>
+                <Icon name="plus" class="size-4" /> Add member
+              </Button>
+            </Show>
           </>
         }
       />
@@ -182,12 +188,14 @@ export function OverviewPage() {
                 <Card>
                   <CardHeader title="Readiness" description="Configuration checks" />
                   <CardBody class="space-y-1">
-                    <Checklist
-                      ok={overview().readiness.sso}
-                      title="Single sign-on"
-                      detail={overview().readiness.sso ? "Identity provider connected" : "Configure an OIDC connection"}
-                      href="/identity"
-                    />
+                    <Show when={session.org()?.kind === "team"}>
+                      <Checklist
+                        ok={overview().readiness.sso}
+                        title="Single sign-on"
+                        detail={overview().readiness.sso ? "Identity provider connected" : "Configure an OIDC connection"}
+                        href="/identity"
+                      />
+                    </Show>
                     <Checklist
                       ok={overview().readiness.upstream}
                       title="Model upstream"

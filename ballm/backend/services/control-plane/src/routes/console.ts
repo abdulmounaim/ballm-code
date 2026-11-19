@@ -216,7 +216,7 @@ export function consoleRoutes(deps: Deps) {
       org: context.org,
       role: context.role,
       csrf: context.csrf,
-      capabilities: capabilities(context.role),
+      capabilities: capabilities(context.role, context.org.kind),
       auth: {
         password: Boolean(account?.identity_id),
         emailVerifiedAt: account?.email_verified_at ?? null,
@@ -282,6 +282,8 @@ export function consoleRoutes(deps: Deps) {
 
   app.post("/api/console/members", async (c) => {
     const context = requireRole(c, ["owner", "admin"])
+    if (context.org.kind !== "team")
+      return c.json({ error: "conflict", message: "Personal workspaces have a single member" }, 409)
     const input = await parseBody(c, MemberInput)
     if (input.role === "owner" && context.role !== "owner")
       return c.json({ error: "forbidden", message: "Only an owner can add another owner" }, 403)
@@ -348,6 +350,8 @@ export function consoleRoutes(deps: Deps) {
 
   app.post("/api/console/invites", async (c) => {
     const context = requireRole(c, ["owner", "admin"])
+    if (context.org.kind !== "team")
+      return c.json({ error: "conflict", message: "Invite people to a team workspace instead" }, 409)
     const limited = await rateLimit(c, deps, "console.invite", 30)
     if (limited) return limited
     const input = await parseBody(c, MemberInput)
@@ -536,6 +540,8 @@ export function consoleRoutes(deps: Deps) {
 
   app.put("/api/console/sso", async (c) => {
     const context = requireRole(c, ["owner", "admin"])
+    if (context.org.kind !== "team")
+      return c.json({ error: "conflict", message: "Single sign-on belongs to a team workspace" }, 409)
     const input = await parseBody(c, SsoInput)
     if (deps.env.BALLM_ENV === "production" && !input.issuer.startsWith("https://"))
       return c.json({ error: "invalid_request", message: "The issuer must use HTTPS in production" }, 400)

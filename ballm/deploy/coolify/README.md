@@ -29,10 +29,13 @@ https://code.baytai.io  ──▶  ballm-control:8787
 | --- | --- | --- | --- | --- | --- |
 | Control plane | Application | `ballm-control` | `ballm-control` | 8787 | `https://code.baytai.io` |
 | Gateway | Application | `ballm-gateway` | `ballm-gateway` | 8788 | none |
-| PostgreSQL | Database | `ballm-postgres` | `ballm-postgres` | 5432 | none |
-| Redis | Database | `ballm-redis` | `ballm-redis` | 6379 | none |
+| Identity | Application | `ballm-kratos` | `ballm-kratos` | 4433 | none (proxied by control) |
+| PostgreSQL | Database | `ballm-postgres` | UUID hostname | 5432 | none |
+| Identity store | Database | `ballm-kratos-db` | UUID hostname | 5432 | none |
+| Redis | Database | `ballm-redis` | UUID hostname | 6379 | none |
 
-All four resources use the same project, environment, server, and destination (`coolify` network).
+All resources use the same project, environment, server, and destination (`coolify` network).
+Coolify resolves a database by its UUID, not its display name; use `<uuid>:5432` in `DATABASE_URL`.
 
 ## Application settings
 
@@ -44,8 +47,35 @@ Base directory:  ballm/backend        # use . if the repository contains only th
 Dockerfile:      Dockerfile
 ```
 
-Set `custom_internal_name` so the gateway hostname survives deployments. Do not use the generated
-`{uuid}-{timestamp}` container name.
+Set `custom_internal_name` so the gateway and identity hostnames survive deployments. Do not use
+the generated `{uuid}-{timestamp}` container name.
+
+The identity application uses a different build context:
+
+```text
+Base directory:  ballm/backend/kratos
+Dockerfile:      Dockerfile
+Port:            4433
+Health check:    /health/ready
+```
+
+## Environment: identity (Kratos)
+
+```sh
+DSN=postgres://kratos:<password>@<kratos-db-uuid>:5432/kratos?sslmode=disable
+SERVE_PUBLIC_BASE_URL=https://code.baytai.io
+SERVE_ADMIN_BASE_URL=http://ballm-kratos:4434
+COURIER_SMTP_CONNECTION_URI=smtps://noreply%40example.com:<url-encoded-password>@mail.example.com:465
+COOKIE_SECURE=true
+SECRETS_COOKIE=<32 characters>
+SECRETS_CIPHER=<32 characters>
+LOG_LEVEL=info
+SQA_OPT_OUT=true
+```
+
+`SERVE_PUBLIC_BASE_URL` must be the console origin: Kratos redirects to `/console/login`,
+`/console/register`, `/console/recover`, `/console/verify`, and `/console/settings`, all of which the
+control plane proxies back to it under `/self-service/*`.
 
 ## Environment: control plane
 
@@ -57,6 +87,11 @@ BALLM_GATEWAY_PUBLIC_URL=https://code.baytai.io
 BALLM_GATEWAY_INTERNAL_URL=http://ballm-gateway:8788
 BALLM_SERVICE=control-plane
 PORT=8787
+BALLM_KRATOS_PUBLIC_URL=http://ballm-kratos:4433
+BALLM_KRATOS_ADMIN_URL=http://ballm-kratos:4434
+BALLM_SIGNUP_ENABLED=1
+BALLM_SMTP_URL=smtps://noreply%40example.com:<url-encoded-password>@mail.example.com:465
+BALLM_MAIL_FROM=Ballm Code <noreply@example.com>
 BALLM_TRUST_PROXY=1
 BALLM_MIGRATE_ON_START=1
 BALLM_DEV_AUTH=0
