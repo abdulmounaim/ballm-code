@@ -26,6 +26,12 @@ ENV NODE_ENV=production
 
 COPY --from=console /console/dist ./console/dist
 
+# Coolify and other orchestrators probe /health with curl inside the container.
+USER root
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends curl ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
+
 USER bun
 EXPOSE 8787 8788
 
