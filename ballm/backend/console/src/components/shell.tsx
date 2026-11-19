@@ -178,13 +178,25 @@ export function Shell(props: { children?: JSX.Element }) {
                       }}
                     >
                       <span class="truncate">{org.name}</span>
-                      <span class="text-[10.5px] capitalize opacity-70">{org.role}</span>
+                      <span class="text-[10.5px] capitalize opacity-70">
+                        {org.kind === "personal" ? "Personal" : org.role}
+                      </span>
                     </button>
                   )}
                 </For>
                 <Show when={(session.session()?.orgs.length ?? 0) <= 1}>
-                  <p class="px-2.5 py-2 text-[11.5px] text-ink-subtle">You belong to one organization.</p>
+                  <p class="px-2.5 py-2 text-[11.5px] text-ink-subtle">You belong to one workspace.</p>
                 </Show>
+                <div class="mt-1 border-t border-line pt-1">
+                  <A
+                    href="/workspaces/new"
+                    onClick={() => setOrgOpen(false)}
+                    class="flex items-center gap-2 rounded-md px-2.5 py-2 text-[12.5px] font-medium text-ink transition hover:bg-surface-hover"
+                  >
+                    <Icon name="plus" class="size-3.5 text-ink-subtle" />
+                    Create workspace
+                  </A>
+                </div>
               </div>
             </Show>
           </div>

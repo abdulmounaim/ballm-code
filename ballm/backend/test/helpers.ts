@@ -27,8 +27,8 @@ export async function testDatabase() {
 export async function resetDatabase(sql: Sql) {
   await sql`
     TRUNCATE TABLE
-      usage_events, audit_events, oidc_states, browser_sessions, refresh_tokens,
-      device_codes, sessions, sso_connections, org_settings, org_policies,
+      usage_events, audit_events, auth_states, invites, oidc_states, browser_sessions,
+      refresh_tokens, device_codes, sessions, sso_connections, org_settings, org_policies,
       org_models, model_catalog, memberships, users, orgs
     RESTART IDENTITY CASCADE
   `
@@ -86,8 +86,14 @@ export function baseEnv() {
     BALLM_GATEWAY_CONNECT_TIMEOUT_MS: 15_000,
     BALLM_GATEWAY_RATE_LIMIT_PER_MINUTE: 240,
     BALLM_AUTH_RATE_LIMIT_PER_MINUTE: 30,
+    BALLM_KRATOS_PUBLIC_URL: undefined,
+    BALLM_KRATOS_ADMIN_URL: undefined,
+    BALLM_SIGNUP_ENABLED: true,
+    BALLM_SMTP_URL: undefined,
+    BALLM_MAIL_FROM: "Ballm Code <noreply@test.internal>",
     jwtIssuer: "http://localhost:8787",
     migrateOnStart: false,
+    identityEnabled: false,
   }
 }
 

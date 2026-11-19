@@ -113,6 +113,54 @@ Returns the browser session's user and organizations.
 
 Revokes the browser session and clears the cookie.
 
+## Password identity (Ory Kratos)
+
+Password and passkey credentials live in Kratos. The control plane proxies its public API under
+`/self-service/*` and `/sessions/*` so the console stays same-origin. These endpoints exist only
+when `BALLM_KRATOS_PUBLIC_URL` is set.
+
+### `GET /auth/config`
+
+Public capabilities for the sign-in UI.
+
+```json
+{ "password": { "enabled": true }, "signup": true, "sso": true }
+```
+
+### `GET /auth/password/:mode`
+
+`mode` is `login`, `register`, `recover`, `settings`, or `verify`. Stores device approval and
+invitation context in `auth_states` for 15 minutes, then redirects to the Kratos browser flow with a
+`return_to` of `/auth/password/complete?state=...`.
+
+### `GET /auth/password/complete`
+
+Reads `ory_kratos_session`, verifies the identity through Kratos `sessions/whoami`, and requires a
+verified address. It links `users.identity_id`, creates the personal workspace, accepts a pending
+invitation when the flow carried one, approves the device code when the flow started from a
+terminal, sets the browser cookie, and redirects to `/console/`.
+
+### `GET /auth/invite?token=...`
+
+Public invitation summary: organization name, invited address, and role.
+
+### `POST /auth/invite/accept`
+
+Accepts `{ "token": "..." }` for the signed-in account. The address must match the invitation.
+Replay and expiry return `404`; a mismatched account returns `403`.
+
+## Invitations
+
+`POST /api/console/invites` creates a single-use token and emails it. The response includes the link
+and `delivered: false` when SMTP is not configured. Tokens are hashed at rest, expire after seven
+days, and are bound to the invited address.
+
+## Workspaces
+
+`POST /api/console/orgs` creates a team workspace for the signed-in user. Every account also has a
+personal workspace created at first sign-in (`orgs.kind = 'personal'`). `X-Org-Id` selects the active
+workspace on each console request.
+
 ### `POST /auth/dev/login`
 
 Only when `BALLM_DEV_AUTH=1` and never in production.

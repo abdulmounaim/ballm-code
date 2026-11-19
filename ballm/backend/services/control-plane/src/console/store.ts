@@ -13,6 +13,7 @@ export interface ConsoleOrg {
   slug: string
   name: string
   role: Role
+  kind: "personal" | "team"
 }
 
 export interface ConsoleMember {
@@ -39,7 +40,7 @@ export interface ConsoleSession {
   email: string
   name: string | null
   role: Role
-  auth_method: "device" | "sso" | "dev"
+  auth_method: "device" | "sso" | "dev" | "password"
   user_agent: string | null
   ip: string | null
   created_at: string
@@ -75,11 +76,11 @@ export async function userById(sql: Sql, userId: string) {
 
 export async function orgsWithRoles(sql: Sql, userId: string) {
   return sql<ConsoleOrg[]>`
-    SELECT orgs.id, orgs.slug, orgs.name, memberships.role
+    SELECT orgs.id, orgs.slug, orgs.name, orgs.kind, memberships.role
     FROM orgs
     JOIN memberships ON memberships.org_id = orgs.id
     WHERE memberships.user_id = ${userId}
-    ORDER BY orgs.name
+    ORDER BY CASE orgs.kind WHEN 'personal' THEN 0 ELSE 1 END, orgs.name
   `
 }
 

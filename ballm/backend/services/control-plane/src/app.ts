@@ -10,6 +10,8 @@ import { gatewayProxyRoutes } from "./routes/gateway-proxy"
 import { directoryRoutes } from "./routes/directory"
 import { healthRoutes } from "./routes/health"
 import { jwksRoutes } from "./routes/jwks"
+import { kratosProxyRoutes } from "./routes/kratos-proxy"
+import { inviteRoutes, passwordRoutes } from "./routes/password"
 import { ssoRoutes } from "./routes/sso"
 import { applySecurityHeaders, consoleStaticRoutes } from "./static"
 
@@ -61,10 +63,13 @@ export function createApp(deps: Deps) {
   app.route("/", jwksRoutes(deps))
   app.route("/", deviceRoutes(deps))
   app.route("/", ssoRoutes(deps))
+  app.route("/", passwordRoutes(deps))
+  app.route("/", inviteRoutes(deps))
   app.route("/", directoryRoutes(deps))
   app.route("/", configRoutes(deps))
   app.route("/", adminRoutes(deps))
   app.route("/", consoleRoutes(deps))
+  kratosProxyRoutes(app, deps)
   gatewayProxyRoutes(app, deps)
   consoleStaticRoutes(app, deps)
 

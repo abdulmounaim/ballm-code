@@ -7,8 +7,10 @@ import { Icon } from "./components/icon"
 import { useSession } from "./session"
 import { AccountPage } from "./routes/account"
 import { AuditPage } from "./routes/audit"
+import { AuthFlowPage } from "./routes/auth-flow"
 import { DeviceApproval, DeviceSuccess } from "./routes/device"
 import { IdentityPage } from "./routes/identity"
+import { InvitePage } from "./routes/invite"
 import { MembersPage } from "./routes/members"
 import { ModelsPage } from "./routes/models"
 import { OverviewPage } from "./routes/overview"
@@ -17,12 +19,10 @@ import { SessionsPage } from "./routes/sessions"
 import { SignIn } from "./routes/sign-in"
 import { UpstreamPage } from "./routes/upstream"
 import { UsagePage } from "./routes/usage"
+import { NewWorkspacePage } from "./routes/workspaces"
 import type { Capabilities } from "./types"
 
 export function App() {
-  const pathname = window.location.pathname
-  const publicDeviceRoute = pathname === "/console/device" || pathname.startsWith("/console/device/")
-
   return (
     <ErrorBoundary
       fallback={(error) => (
@@ -32,14 +32,135 @@ export function App() {
         />
       )}
     >
-      {publicDeviceRoute ? (
-        <Router base="/console">
-          <Route path="/device" component={DeviceApprovalRoute} />
-          <Route path="/device/success" component={DeviceSuccessRoute} />
-        </Router>
-      ) : (
-        <ProtectedApp />
-      )}
+      <Router base="/console">
+        <Route
+          path="/login"
+          component={() => (
+            <AuthFlowPage
+              kind="login"
+              title="Sign in"
+              description="Enter the email and password for your Ballm Code account."
+              footer="login"
+            />
+          )}
+        />
+        <Route
+          path="/register"
+          component={() => (
+            <AuthFlowPage
+              kind="registration"
+              title="Create your account"
+              description="A personal workspace is created for you. You can join or create a team afterwards."
+              footer="registration"
+            />
+          )}
+        />
+        <Route
+          path="/recover"
+          component={() => (
+            <AuthFlowPage
+              kind="recovery"
+              title="Reset your password"
+              description="We will email you a link to choose a new password."
+              footer="recovery"
+            />
+          )}
+        />
+        <Route
+          path="/verify"
+          component={() => (
+            <AuthFlowPage
+              kind="verification"
+              title="Verify your email"
+              description="Confirm your address before using the workspace. We only need this once per address."
+              footer="verification"
+            />
+          )}
+        />
+        <Route
+          path="/settings"
+          component={() => (
+            <AuthFlowPage
+              kind="settings"
+              title="Password and security"
+              description="Change your password or add a passkey. These controls belong to your account, not a workspace."
+            />
+          )}
+        />
+        <Route path="/invite" component={InvitePage} />
+        <Route path="/device" component={DeviceApprovalRoute} />
+        <Route path="/device/success" component={DeviceSuccessRoute} />
+        <Route path="/" component={ProtectedShell}>
+          <Route path="/" component={Home} />
+          <Route
+            path="/members"
+            component={() => (
+              <Require cap="manageMembers">
+                <MembersPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/models"
+            component={() => (
+              <Require cap="manageModels">
+                <ModelsPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/policies"
+            component={() => (
+              <Require cap="managePolicies">
+                <PoliciesPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/identity"
+            component={() => (
+              <Require cap="manageSso">
+                <IdentityPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/upstream"
+            component={() => (
+              <Require cap="manageUpstream">
+                <UpstreamPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/sessions"
+            component={() => (
+              <Require cap="manageMembers">
+                <SessionsPage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/usage"
+            component={() => (
+              <Require cap="viewUsage">
+                <UsagePage />
+              </Require>
+            )}
+          />
+          <Route
+            path="/audit"
+            component={() => (
+              <Require cap="viewAudit">
+                <AuditPage />
+              </Require>
+            )}
+          />
+          <Route path="/account" component={AccountPage} />
+          <Route path="/workspaces/new" component={NewWorkspacePage} />
+          <Route path="*" component={NotFound} />
+        </Route>
+      </Router>
     </ErrorBoundary>
   )
 }
@@ -54,7 +175,7 @@ function DeviceSuccessRoute() {
   return <DeviceSuccess code={code} />
 }
 
-function ProtectedApp() {
+function ProtectedShell(props: { children?: JSX.Element }) {
   const session = useSession()
 
   return (
@@ -69,77 +190,7 @@ function ProtectedApp() {
         <FatalError message={session.error()} onRetry={() => void session.reload()} />
       </Show>
       <Show when={session.status() === "ready"}>
-        <Router base="/console">
-          <Route path="/" component={Shell}>
-            <Route path="/" component={Home} />
-            <Route
-              path="/members"
-              component={() => (
-                <Require cap="manageMembers">
-                  <MembersPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/models"
-              component={() => (
-                <Require cap="manageModels">
-                  <ModelsPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/policies"
-              component={() => (
-                <Require cap="managePolicies">
-                  <PoliciesPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/identity"
-              component={() => (
-                <Require cap="manageSso">
-                  <IdentityPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/upstream"
-              component={() => (
-                <Require cap="manageUpstream">
-                  <UpstreamPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/sessions"
-              component={() => (
-                <Require cap="manageMembers">
-                  <SessionsPage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/usage"
-              component={() => (
-                <Require cap="viewUsage">
-                  <UsagePage />
-                </Require>
-              )}
-            />
-            <Route
-              path="/audit"
-              component={() => (
-                <Require cap="viewAudit">
-                  <AuditPage />
-                </Require>
-              )}
-            />
-            <Route path="/account" component={AccountPage} />
-            <Route path="*" component={NotFound} />
-          </Route>
-        </Router>
+        <Shell>{props.children}</Shell>
       </Show>
     </>
   )

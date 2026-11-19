@@ -11,12 +11,17 @@ import {
   browserSession,
   createOidcState,
   createSession,
+  createInvite,
+  createTeamOrg,
   defaultPolicies,
   deviceByUserCode,
   getOrgConfig,
+  listInvites,
   membership,
+  orgBySlug,
   orgForEmailDomain,
   removeOrgMember,
+  revokeInvite,
   revokeSession,
   setOrgModels,
   setOrgSettings,
@@ -27,6 +32,7 @@ import {
 } from "../store"
 import { authorizationUrl, discover, pkce } from "../sso/oidc"
 import { oidcConnection } from "../sso/connection"
+import { createMailer } from "../mailer"
 import { assertSameOrigin, capabilities, consoleAuth, consoleContext, requireRole } from "../console/auth"
 import { browserCookieName } from "../console/cookies"
 import {
@@ -61,6 +67,17 @@ const MemberInput = z.object({
 })
 
 const MemberPatchInput = z.object({ role: RoleInput })
+
+const WorkspaceInput = z.object({
+  name: z.string().trim().min(2, "Use at least two characters").max(80),
+  slug: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .min(2)
+    .max(40)
+    .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, "Use lowercase letters, numbers, and hyphens"),
+})
 
 const ModelInput = z.object({
   id: z
@@ -190,6 +207,9 @@ export function consoleRoutes(deps: Deps) {
 
   app.get("/api/console/session", async (c) => {
     const context = consoleContext(c)
+    const [account] = await deps.db.write<{ email_verified_at: Date | null; identity_id: string | null }[]>`
+      SELECT email_verified_at, identity_id FROM users WHERE id = ${context.user.id} LIMIT 1
+    `
     return c.json({
       user: context.user,
       orgs: await orgsWithRoles(deps.db.write, context.user.id),
@@ -197,6 +217,11 @@ export function consoleRoutes(deps: Deps) {
       role: context.role,
       csrf: context.csrf,
       capabilities: capabilities(context.role),
+      auth: {
+        password: Boolean(account?.identity_id),
+        emailVerifiedAt: account?.email_verified_at ?? null,
+        identityEnabled: deps.env.identityEnabled,
+      },
     })
   })
 
@@ -314,6 +339,78 @@ export function consoleRoutes(deps: Deps) {
       detail: { target: userId, revokedSessions: revoked },
     })
     return c.json({ ok: true, revokedSessions: revoked })
+  })
+
+  app.get("/api/console/invites", async (c) => {
+    const context = requireRole(c, ["owner", "admin"])
+    return c.json({ invites: await listInvites(deps.db.write, context.orgId) })
+  })
+
+  app.post("/api/console/invites", async (c) => {
+    const context = requireRole(c, ["owner", "admin"])
+    const limited = await rateLimit(c, deps, "console.invite", 30)
+    if (limited) return limited
+    const input = await parseBody(c, MemberInput)
+    if (input.role === "owner" && context.role !== "owner")
+      return c.json({ error: "forbidden", message: "Only an owner can invite another owner" }, 403)
+
+    const email = input.email.trim().toLowerCase()
+    const invite = await createInvite(deps.db.write, {
+      orgId: context.orgId,
+      email,
+      role: input.role,
+      createdBy: context.user.id,
+      ttlSeconds: 7 * 24 * 60 * 60,
+    })
+    const link = `${deps.env.BALLM_PUBLIC_URL.replace(/\/+$/, "")}/console/invite?token=${invite.token}`
+    const mail = await createMailer(deps.env, deps.logger).send({
+      to: email,
+      subject: `Join ${context.org.name} on Ballm Code`,
+      text: [
+        `${context.user.name ?? context.user.email} invited you to ${context.org.name} on Ballm Code.`,
+        "",
+        `Open this link to join: ${link}`,
+        "",
+        "The invitation expires in seven days.",
+      ].join("\n"),
+    })
+    await audit(deps.db.write, {
+      kind: "console.invite.create",
+      orgId: context.orgId,
+      userId: context.user.id,
+      detail: { email, role: input.role, delivered: mail.delivered },
+    })
+    return c.json({ invite: { id: invite.id, email, role: input.role }, link, delivered: mail.delivered }, 201)
+  })
+
+  app.delete("/api/console/invites/:id", async (c) => {
+    const context = requireRole(c, ["owner", "admin"])
+    const removed = await revokeInvite(deps.db.write, context.orgId, c.req.param("id"))
+    if (!removed) return c.json({ error: "not_found" }, 404)
+    await audit(deps.db.write, {
+      kind: "console.invite.revoke",
+      orgId: context.orgId,
+      userId: context.user.id,
+      detail: { id: c.req.param("id") },
+    })
+    return c.json({ ok: true })
+  })
+
+  app.post("/api/console/orgs", async (c) => {
+    const context = requireRole(c, ["owner", "admin", "member"])
+    const limited = await rateLimit(c, deps, "console.org.create", 10)
+    if (limited) return limited
+    const input = await parseBody(c, WorkspaceInput)
+    if (await orgBySlug(deps.db.write, input.slug))
+      return c.json({ error: "conflict", message: "That workspace URL is already taken" }, 409)
+    const org = await createTeamOrg(deps.db.write, { userId: context.user.id, slug: input.slug, name: input.name })
+    await audit(deps.db.write, {
+      kind: "console.org.create",
+      orgId: org.id,
+      userId: context.user.id,
+      detail: { slug: org.slug, name: org.name },
+    })
+    return c.json(org, 201)
   })
 
   app.get("/api/console/models", async (c) => {

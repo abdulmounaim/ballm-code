@@ -5,7 +5,7 @@ export const product = {
   clientID: "ballm-cli",
   methodID: "device",
   package: "@opencode/ai/providers/openai-compatible",
-  defaultServer: "https://code.ballm.internal",
+  defaultServer: "https://code.baytai.io",
   envServer: "BALLM_SERVER",
   userAgent: "ballm-code/0.1.0",
   serverMetadataKey: "server",

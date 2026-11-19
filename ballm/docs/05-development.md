@@ -116,6 +116,33 @@ The device page resolves the organization from the email domain. If several orga
 domain, the first match is used; give each organization a distinct domain or add an org picker when
 that becomes a real use case.
 
+## Accounts
+
+Individuals sign up with email and password; organizations use the same accounts and can enforce
+their own SSO. Credentials live in Ory Kratos, which is deployed from `backend/kratos` and reached
+through the control plane at `/self-service/*` and `/sessions/*`, so the console keeps a
+first-party cookie and `connect-src 'self'`.
+
+```sh
+BALLM_KRATOS_PUBLIC_URL=http://ballm-kratos:4433
+BALLM_KRATOS_ADMIN_URL=http://ballm-kratos:4434
+BALLM_SIGNUP_ENABLED=1
+BALLM_SMTP_URL=smtps://user:pass@mail.example.com:465
+```
+
+With `BALLM_KRATOS_PUBLIC_URL` unset, password endpoints return 404, `/auth/config` reports it as
+disabled, and the console shows SSO only.
+
+Flow: `/auth/password/:mode` stores device-code and invitation context in `auth_states`, redirects to
+Kratos, and `/auth/password/complete` turns a verified Kratos session into a platform browser
+session. An unverified address is sent through the verification flow first. Every account gets a
+personal workspace on first completion.
+
+Team workspaces are created with `POST /api/console/orgs`. Invitations are single-use,
+address-bound tokens (`POST /api/console/invites`) and are accepted at `/console/invite?token=...`.
+When SMTP is not configured, the API returns the invite link so an operator can deliver it by hand.
+
+
 ## Models and policies
 
 ```sh

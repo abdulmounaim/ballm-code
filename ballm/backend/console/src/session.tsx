@@ -31,6 +31,7 @@ interface SessionApi {
   error: () => string | undefined
   orgId: () => string | undefined
   can: () => Capabilities
+  auth: () => Session["auth"] | undefined
   request: <T>(path: string, input?: Omit<RequestInput, "orgId" | "csrf">) => Promise<T>
   switchOrg: (id: string) => Promise<void>
   signOut: () => Promise<void>
@@ -115,6 +116,7 @@ export function SessionProvider(props: { children: JSX.Element }) {
     error,
     orgId: () => orgId() ?? session()?.org.id,
     can: () => session()?.capabilities ?? emptyCapabilities,
+    auth: () => session()?.auth,
     request,
     switchOrg,
     signOut,

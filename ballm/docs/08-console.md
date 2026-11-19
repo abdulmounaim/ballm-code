@@ -10,7 +10,7 @@ It is a SolidJS single-page app served by the control plane at `/console/`.
 | Route | Who | Purpose |
 | --- | --- | --- |
 | `/console/` | owners, admins | Organization overview, 14-day traffic, readiness checks, recent activity |
-| `/console/members` | owners, admins | Add people, change roles, remove access |
+| `/console/members` | owners, admins | Invite people, change roles, revoke pending invitations, remove access |
 | `/console/models` | owners, admins | Catalog and per-organization allowlist |
 | `/console/policies` | owners, admins | Delivered policy statements and defaults |
 | `/console/identity` | owners, admins | OIDC connection, allowed domains, group-to-role mapping |
@@ -18,7 +18,14 @@ It is a SolidJS single-page app served by the control plane at `/console/`.
 | `/console/sessions` | owners, admins | Active devices, revoke access |
 | `/console/usage` | owners, admins | Requests and tokens by day, model, and developer |
 | `/console/audit` | owners, admins | Append-only administrative and authentication history |
-| `/console/account` | everyone | Profile, role, connected devices, sign out |
+| `/console/account` | everyone | Profile, role, sign-in method, connected devices, sign out |
+| `/console/workspaces/new` | everyone | Create a team workspace |
+| `/console/login` | public | Kratos password/passkey flow |
+| `/console/register` | public | Self-serve account and personal workspace |
+| `/console/recover` | public | Password recovery |
+| `/console/verify` | public | Email verification |
+| `/console/settings` | signed in | Password and passkey settings |
+| `/console/invite` | public | Accept a workspace invitation |
 | `/console/device` | public / signed in | Approve a device code from the CLI or desktop app |
 | `/console/device/success` | public | Confirmation after approval |
 
@@ -105,6 +112,10 @@ GET    /api/console/members
 POST   /api/console/members
 PATCH  /api/console/members/:userId
 DELETE /api/console/members/:userId
+GET    /api/console/invites
+POST   /api/console/invites
+DELETE /api/console/invites/:id
+POST   /api/console/orgs
 GET    /api/console/models
 PUT    /api/console/models/:id
 PUT    /api/console/models

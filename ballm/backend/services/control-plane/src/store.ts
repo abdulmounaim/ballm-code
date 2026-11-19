@@ -19,7 +19,7 @@ export interface SessionRow {
   id: string
   user_id: string
   org_id: string
-  auth_method: "device" | "sso" | "dev"
+  auth_method: "device" | "sso" | "dev" | "password"
   revoked_at: Date | null
 }
 
@@ -153,7 +153,7 @@ export async function createSession(
   input: {
     userId: string
     orgId: string
-    method: "device" | "sso" | "dev"
+    method: "device" | "sso" | "dev" | "password"
     userAgent?: string
     ip?: string
   },
@@ -538,7 +538,7 @@ export async function setOrgModels(sql: Sql, orgId: string, modelIds: readonly s
   })
 }
 
-export async function setPolicies(sql: Sql, orgId: string, statements: unknown) {
+export async function setPolicies(sql: Query, orgId: string, statements: unknown) {
   await sql`
     INSERT INTO org_policies (org_id, statements) VALUES (${orgId}, ${sql.json(statements as never)})
     ON CONFLICT (org_id) DO UPDATE SET statements = EXCLUDED.statements, updated_at = now()
@@ -631,6 +631,7 @@ export async function ensureBootstrap(sql: Sql, config: ControlPlaneEnv, secrets
   })
   const user = await findOrCreateUser(sql, { email: config.BALLM_BOOTSTRAP_ADMIN_EMAIL })
   await ensureMembership(sql, user.id, org.id, "owner")
+  await ensurePersonalOrg(sql, { userId: user.id, email: user.email, name: user.name })
 
   for (const entry of parseModels(config.BALLM_BOOTSTRAP_MODELS)) {
     const model = await upsertModel(sql, { id: entry.id, name: entry.name, upstreamModel: entry.id })
@@ -686,4 +687,240 @@ function parseModels(input: string) {
       if (separator === -1) return { id: entry, name: entry }
       return { id: entry.slice(0, separator).trim(), name: entry.slice(separator + 1).trim() }
     })
+}
+
+export interface IdentityUserRow extends UserRow {
+  identity_id: string | null
+  email_verified_at: Date | null
+}
+
+export async function userByIdentityId(sql: Sql, identityId: string) {
+  const rows = await sql<UserRow[]>`
+    SELECT id, email, name FROM users WHERE identity_id = ${identityId} LIMIT 1
+  `
+  return rows[0]
+}
+
+/**
+ * Resolves the platform user for a verified Kratos identity. The email is the joining key so a
+ * person who first arrived through SSO keeps one account and one set of memberships.
+ */
+export async function findOrCreateIdentityUser(
+  sql: Sql,
+  input: { identityId: string; email: string; name?: string; verifiedAt: Date | null },
+) {
+  const email = input.email.trim()
+  const byIdentity = await userByIdentityId(sql, input.identityId)
+  if (byIdentity) {
+    const rows = await sql<UserRow[]>`
+      UPDATE users SET
+        name = coalesce(name, ${input.name ?? null}),
+        email_verified_at = coalesce(email_verified_at, ${input.verifiedAt}::timestamptz),
+        updated_at = now()
+      WHERE id = ${byIdentity.id}
+      RETURNING id, email, name
+    `
+    return rows[0]!
+  }
+
+  const existing = await sql<UserRow[]>`
+    SELECT id, email, name FROM users WHERE lower(email) = lower(${email}) LIMIT 1
+  `
+  if (existing[0]) {
+    const rows = await sql<UserRow[]>`
+      UPDATE users SET
+        identity_id = coalesce(identity_id, ${input.identityId}),
+        name = coalesce(name, ${input.name ?? null}),
+        email_verified_at = coalesce(email_verified_at, ${input.verifiedAt}::timestamptz),
+        updated_at = now()
+      WHERE id = ${existing[0].id}
+      RETURNING id, email, name
+    `
+    return rows[0]!
+  }
+
+  const rows = await sql<UserRow[]>`
+    INSERT INTO users (id, email, name, identity_id, email_verified_at)
+    VALUES (${`usr_${randomUUID()}`}, ${email}, ${input.name ?? null}, ${input.identityId}, ${input.verifiedAt})
+    RETURNING id, email, name
+  `
+  return rows[0]!
+}
+
+/** Gives every account a personal workspace so org-scoped models, policies and usage just work. */
+export async function ensurePersonalOrg(
+  sql: Sql,
+  input: { userId: string; email: string; name?: string | null },
+) {
+  const existing = await sql<OrgRow[]>`
+    SELECT id, slug, name FROM orgs WHERE kind = 'personal' AND created_by = ${input.userId} LIMIT 1
+  `
+  if (existing[0]) return existing[0]
+
+  const local = input.email.split("@")[0]?.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") ?? ""
+  const base = (local || "user").slice(0, 24)
+  const org = {
+    id: `org_${randomUUID()}`,
+    slug: `${base}-${randomUUID().slice(0, 6)}`,
+    name: input.name?.trim() || input.email.split("@")[0] || input.email,
+  }
+  return sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO orgs (id, slug, name, kind, created_by)
+      VALUES (${org.id}, ${org.slug}, ${org.name}, 'personal', ${input.userId})
+    `
+    await tx`
+      INSERT INTO memberships (user_id, org_id, role) VALUES (${input.userId}, ${org.id}, 'owner')
+      ON CONFLICT DO NOTHING
+    `
+    await seedOrgDefaults(tx, org.id)
+    return org
+  })
+}
+
+/** Seeds a new workspace with the default managed policy and every catalog model that is enabled. */
+export async function seedOrgDefaults(sql: Query, orgId: string) {
+  await setPolicies(sql, orgId, defaultPolicies())
+  await sql`
+    INSERT INTO org_models (org_id, model_id)
+    SELECT ${orgId}, id FROM model_catalog WHERE enabled
+    ON CONFLICT DO NOTHING
+  `
+}
+
+export async function createTeamOrg(
+  sql: Sql,
+  input: { userId: string; slug: string; name: string },
+) {
+  const org = {
+    id: `org_${randomUUID()}`,
+    slug: input.slug,
+    name: input.name.trim(),
+  }
+  return sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO orgs (id, slug, name, kind, created_by)
+      VALUES (${org.id}, ${org.slug}, ${org.name}, 'team', ${input.userId})
+    `
+    await tx`
+      INSERT INTO memberships (user_id, org_id, role) VALUES (${input.userId}, ${org.id}, 'owner')
+      ON CONFLICT DO NOTHING
+    `
+    await seedOrgDefaults(tx, org.id)
+    return org
+  })
+}
+
+export interface InviteRow {
+  id: string
+  org_id: string
+  email: string
+  role: string
+  expires_at: Date
+  accepted_at: Date | null
+  revoked_at: Date | null
+}
+
+export async function createInvite(
+  sql: Sql,
+  input: { orgId: string; email: string; role: string; createdBy: string; ttlSeconds: number },
+) {
+  const token = randomToken(32)
+  const id = `inv_${randomUUID()}`
+  await sql.begin(async (tx) => {
+    await tx`
+      UPDATE invites SET revoked_at = now()
+      WHERE org_id = ${input.orgId} AND lower(email) = lower(${input.email})
+        AND accepted_at IS NULL AND revoked_at IS NULL
+    `
+    await tx`
+      INSERT INTO invites (id, org_id, email, role, token_hash, created_by, expires_at)
+      VALUES (${id}, ${input.orgId}, ${input.email.trim()}, ${input.role}, ${sha256(token)}, ${input.createdBy},
+              now() + ${input.ttlSeconds} * interval '1 second')
+    `
+  })
+  return { id, token }
+}
+
+export async function inviteByToken(sql: Sql, token: string) {
+  const rows = await sql<(InviteRow & { org_name: string; org_slug: string })[]>`
+    SELECT invites.id, invites.org_id, invites.email, invites.role, invites.expires_at,
+           invites.accepted_at, invites.revoked_at, orgs.name AS org_name, orgs.slug AS org_slug
+    FROM invites JOIN orgs ON orgs.id = invites.org_id
+    WHERE invites.token_hash = ${sha256(token)}
+      AND invites.accepted_at IS NULL AND invites.revoked_at IS NULL AND invites.expires_at > now()
+    LIMIT 1
+  `
+  return rows[0]
+}
+
+export async function acceptInvite(sql: Sql, inviteId: string, userId: string) {
+  const rows = await sql<{ org_id: string; role: string }[]>`
+    SELECT org_id, role FROM invites
+    WHERE id = ${inviteId} AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+    LIMIT 1
+  `
+  const invite = rows[0]
+  if (!invite) return undefined
+  await sql.begin(async (tx) => {
+    await tx`
+      INSERT INTO memberships (user_id, org_id, role) VALUES (${userId}, ${invite.org_id}, ${invite.role})
+      ON CONFLICT DO NOTHING
+    `
+    await tx`UPDATE invites SET accepted_at = now() WHERE id = ${inviteId}`
+  })
+  return invite
+}
+
+export async function listInvites(sql: Sql, orgId: string) {
+  return sql<{ id: string; email: string; role: string; created_at: Date; expires_at: Date }[]>`
+    SELECT id, email, role, created_at, expires_at FROM invites
+    WHERE org_id = ${orgId} AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > now()
+    ORDER BY created_at DESC
+  `
+}
+
+export async function revokeInvite(sql: Sql, orgId: string, inviteId: string) {
+  const rows = await sql<{ id: string }[]>`
+    UPDATE invites SET revoked_at = now()
+    WHERE id = ${inviteId} AND org_id = ${orgId} AND accepted_at IS NULL
+    RETURNING id
+  `
+  return rows.length > 0
+}
+
+export async function createAuthState(
+  sql: Sql,
+  input: {
+    kind: "login" | "registration" | "recovery" | "verification" | "settings"
+    deviceCodeHash?: string
+    userCode?: string
+    inviteId?: string
+    returnTo?: string
+  },
+) {
+  const state = randomToken(32)
+  await sql`
+    INSERT INTO auth_states (state, kind, device_code_hash, user_code, invite_id, return_to, expires_at)
+    VALUES (${state}, ${input.kind}, ${input.deviceCodeHash ?? null}, ${input.userCode ?? null},
+            ${input.inviteId ?? null}, ${input.returnTo ?? null}, now() + interval '15 minutes')
+  `
+  return state
+}
+
+export async function consumeAuthState(sql: Sql, state: string) {
+  const rows = await sql<
+    {
+      state: string
+      kind: string
+      device_code_hash: string | null
+      user_code: string | null
+      invite_id: string | null
+      return_to: string | null
+    }[]
+  >`
+    DELETE FROM auth_states WHERE state = ${state} AND expires_at > now()
+    RETURNING state, kind, device_code_hash, user_code, invite_id, return_to
+  `
+  return rows[0]
 }

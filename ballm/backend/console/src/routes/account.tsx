@@ -119,6 +119,46 @@ export function AccountPage() {
 
       <Card>
         <CardHeader
+          title="Sign-in and security"
+          description="Credentials belong to your account, not to a workspace."
+        />
+        <CardBody class="flex flex-wrap items-center justify-between gap-4">
+          <div class="space-y-1.5 text-[12.5px] text-ink-muted">
+            <p class="flex items-center gap-2 text-ink">
+              <Icon name={session.auth()?.password ? "key" : "shield"} class="size-4 text-ink-subtle" />
+              {session.auth()?.password ? "Email and password, or a passkey" : "Organization SSO"}
+            </p>
+            <p class="flex items-center gap-2">
+              <Icon
+                name={session.auth()?.emailVerifiedAt ? "check" : "alert"}
+                class={session.auth()?.emailVerifiedAt ? "size-4 text-success" : "size-4 text-warning"}
+              />
+              {session.auth()?.emailVerifiedAt ? "Email verified" : "Email not verified"}
+            </p>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <Show when={session.auth()?.password}>
+              <a
+                href="/auth/password/settings"
+                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-line bg-surface px-3.5 text-[13px] font-medium text-ink transition hover:bg-surface-hover"
+              >
+                <Icon name="key" class="size-4" /> Password and passkeys
+              </a>
+            </Show>
+            <Show when={session.auth()?.password && !session.auth()?.emailVerifiedAt}>
+              <a
+                href="/auth/password/verify"
+                class="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-accent px-3.5 text-[13px] font-medium text-on-accent transition hover:bg-accent-strong"
+              >
+                Verify email
+              </a>
+            </Show>
+          </div>
+        </CardBody>
+      </Card>
+
+      <Card>
+        <CardHeader
           title="Your devices"
           description="Sessions created by the Ballm Code client and this browser."
         />

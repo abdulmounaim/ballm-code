@@ -5,6 +5,7 @@ export interface Org {
   slug: string
   name: string
   role: Role
+  kind: "personal" | "team"
 }
 
 export interface User {
@@ -31,6 +32,26 @@ export interface Session {
   role: Role
   csrf: string
   capabilities: Capabilities
+  auth: {
+    password: boolean
+    emailVerifiedAt: string | null
+    identityEnabled: boolean
+  }
+}
+
+export interface Invite {
+  id: string
+  email: string
+  role: Role
+  created_at: string
+  expires_at: string
+}
+
+export interface InviteSummary {
+  orgName: string
+  orgSlug: string
+  email: string
+  role: Role
 }
 
 export interface Member {

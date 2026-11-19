@@ -70,6 +70,9 @@ bun run dev:gateway
 | `BALLM_ADMIN_TOKEN` | Bootstrap admin API bearer token |
 | `BALLM_BOOTSTRAP_*` | First org, admin email, starter models |
 | `BALLM_BOOTSTRAP_SSO_*` | Optional first OIDC connection |
+| `BALLM_KRATOS_PUBLIC_URL` / `_ADMIN_URL` | Ory Kratos API; enabling the public URL turns on password sign-in |
+| `BALLM_SIGNUP_ENABLED` | Public self-serve registration, default on |
+| `BALLM_SMTP_URL` / `BALLM_MAIL_FROM` | Invitation mail; `smtps://` for 465 |
 | `BALLM_UPSTREAM_BASE_URL` / `_API_KEY` | Fallback upstream when an org has no override |
 | `BALLM_GATEWAY_*` | Timeouts and per-user rate limit |
 | `BALLM_DEV_AUTH` | Local-only `/auth/dev/login`; rejected in production |
@@ -82,6 +85,11 @@ bun run dev:gateway
 - Revocation writes `ballm:revoked:<sid>` to Redis and marks the session revoked in Postgres.
 - SSO uses OIDC authorization code + PKCE, state, and nonce. The IdP must expose discovery and
   JWKS endpoints. Group claims can map to `owner`, `admin`, or `member`.
+- Password and passkey credentials live in Ory Kratos. The control plane only reads a verified
+  Kratos session, then issues the same browser session, JWT, and refresh tokens as SSO.
+- Every account gets a personal workspace (`orgs.kind = 'personal'`) at first sign-in. Team
+  workspaces are created explicitly and joined through single-use invitations.
+- Public registration creates a personal workspace only. It never grants access to a team.
 
 ## Device flow
 

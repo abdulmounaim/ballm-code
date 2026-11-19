@@ -100,6 +100,21 @@ revocation remain valid until `BALLM_ACCESS_TTL` expires (five minutes by defaul
 4. Check that the ID token contains `email`, `email_verified`, and the configured group claim.
 5. A `403` after callback is usually an allowed-domain or group-mapping problem.
 
+## Diagnose password sign-in
+
+1. `GET /auth/config` should report `password.enabled: true`. If not, the control plane has no
+   `BALLM_KRATOS_PUBLIC_URL`.
+2. `GET /health/ready` on the Kratos container. The app runs migrations on start, so a failure here
+   is usually the `DSN` or a missing `kratos` database.
+3. `GET /self-service/login/browser` through the console origin should return a redirect to
+   `/console/login?flow=...`. A 502 means the control plane cannot reach `ballm-kratos:4433`.
+4. A loop between `/auth/password/complete` and `/console/verify` means Kratos still considers the
+   address unverified. Check the courier SMTP settings and `identities.verifiable_addresses`.
+5. If invitations are created but no mail arrives, `BALLM_SMTP_URL` is unset or the provider rejected
+   the credential. When SMTP is unset the API returns the invite link instead.
+6. Account rows must have `users.identity_id` set. A user without it signed in through SSO and will
+   link the identity on their first password sign-in with the same address.
+
 ## Backups
 
 - Back up PostgreSQL with your normal PITR tooling. `users`, `orgs`, `sessions`, `refresh_tokens`,

@@ -4,6 +4,7 @@ import { Badge, RoleBadge } from "../components/badge"
 import { Card } from "../components/card"
 import { ConfirmDialog, Modal } from "../components/dialog"
 import { Field, Select, TextInput } from "../components/field"
+import { CopyButton } from "../components/controls"
 import { Icon } from "../components/icon"
 import { Avatar, Empty, InlineError, PageHeader, Skeleton } from "../components/ui"
 import { useToast } from "../components/toast"
@@ -27,6 +28,7 @@ export function MembersPage() {
   const [role, setRole] = createSignal<Role>("member")
   const [saving, setSaving] = createSignal(false)
   const [formError, setFormError] = createSignal<string>()
+  const [inviteLink, setInviteLink] = createSignal<string>()
   const [pendingRole, setPendingRole] = createSignal<string>()
   const [removeTarget, setRemoveTarget] = createSignal<Member>()
   const [removing, setRemoving] = createSignal(false)
@@ -34,6 +36,11 @@ export function MembersPage() {
   const [data, { refetch }] = createResource<MembersResponse, string | undefined>(
     () => session.orgId(),
     () => session.request<MembersResponse>("/api/console/members"),
+  )
+
+  const [invites, { refetch: refetchInvites }] = createResource(
+    () => session.orgId(),
+    () => session.request<{ invites: Array<{ id: string; email: string; role: Role; expires_at: string }> }>("/api/console/invites"),
   )
 
   const filtered = createMemo(() => {
@@ -78,19 +85,35 @@ export function MembersPage() {
     event.preventDefault()
     setSaving(true)
     setFormError(undefined)
+    setInviteLink(undefined)
     try {
-      await session.request("/api/console/members", {
+      const result = await session.request<{ link: string; delivered: boolean }>("/api/console/invites", {
         body: { email: email().trim().toLowerCase(), role: role() },
       })
-      toast.success("Member added", `${email()} can now sign in to ${session.org()?.name}.`)
-      setAddOpen(false)
+      if (result.delivered) {
+        toast.success("Invitation sent", `${email()} will receive a link to join ${session.org()?.name}.`)
+        setAddOpen(false)
+      } else {
+        setInviteLink(result.link)
+        toast.success("Invitation created", "Email delivery is not configured; copy the link instead.")
+      }
       setEmail("")
       setRole("member")
-      await refetch()
+      await Promise.all([refetch(), refetchInvites()])
     } catch (cause) {
       setFormError(describeError(cause))
     } finally {
       setSaving(false)
+    }
+  }
+
+  const revoke = async (id: string, email: string) => {
+    try {
+      await session.request(`/api/console/invites/${id}`, { method: "DELETE" })
+      toast.success("Invitation revoked", `${email} can no longer use that link.`)
+      await refetchInvites()
+    } catch (cause) {
+      toast.error("Could not revoke invitation", describeError(cause))
     }
   }
 
@@ -141,7 +164,7 @@ export function MembersPage() {
         description="People who can sign in to this organization. Roles control what they can change in the console."
         actions={
           <Button variant="primary" onClick={() => setAddOpen(true)}>
-            <Icon name="plus" class="size-4" /> Add member
+            <Icon name="plus" class="size-4" /> Invite member
           </Button>
         }
       />
@@ -186,7 +209,7 @@ export function MembersPage() {
                   action={
                     query() ? undefined : (
                       <Button variant="primary" onClick={() => setAddOpen(true)}>
-                        <Icon name="plus" class="size-4" /> Add member
+                        <Icon name="plus" class="size-4" /> Invite member
                       </Button>
                     )
                   }
@@ -266,20 +289,57 @@ export function MembersPage() {
             </Show>
           </Show>
         </Card>
+
+        <Show when={(invites()?.invites.length ?? 0) > 0}>
+          <Card>
+            <div class="border-b border-line px-4 py-3">
+              <h2 class="text-[13.5px] font-semibold text-ink">Pending invitations</h2>
+              <p class="text-[12px] text-ink-muted">Links that have not been accepted yet.</p>
+            </div>
+            <ul class="divide-y divide-line">
+              <For each={invites()?.invites ?? []}>
+                {(invite) => (
+                  <li class="flex items-center justify-between gap-3 px-4 py-3">
+                    <div class="min-w-0">
+                      <p class="truncate text-[13px] text-ink">{invite.email}</p>
+                      <p class="text-[11.5px] text-ink-muted">Expires {fullDate(invite.expires_at)}</p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <RoleBadge role={invite.role} />
+                      <IconButton
+                        label={`Revoke invitation for ${invite.email}`}
+                        variant="ghost"
+                        onClick={() => void revoke(invite.id, invite.email)}
+                      >
+                        <Icon name="trash" class="size-4" />
+                      </IconButton>
+                    </div>
+                  </li>
+                )}
+              </For>
+            </ul>
+          </Card>
+        </Show>
       </Show>
 
       <Modal
         open={addOpen()}
-        onOpenChange={setAddOpen}
-        title="Add a member"
-        description="The person does not need an account beforehand. Their first SSO sign-in creates one."
+        onOpenChange={(open) => {
+          setAddOpen(open)
+          if (!open) {
+            setInviteLink(undefined)
+            setFormError(undefined)
+          }
+        }}
+        title="Invite a member"
+        description="We email a single-use link. Password accounts and SSO accounts both work."
         footer={
           <>
             <Button variant="ghost" onClick={() => setAddOpen(false)} disabled={saving()}>
               Cancel
             </Button>
             <Button variant="primary" loading={saving()} onClick={() => submitForm("add-member-form")}>
-              Add member
+              Send invitation
             </Button>
           </>
         }
@@ -289,14 +349,14 @@ export function MembersPage() {
             label="Work email"
             for="member-email"
             required
-            hint="Must match an allowed domain on the organization's SSO connection."
+            hint="The link only works for this address."
             error={formError()}
           >
             <TextInput
               id="member-email"
               type="email"
               autocomplete="off"
-              placeholder="person@ballm.internal"
+              placeholder="person@company.com"
               value={email()}
               onInput={(event) => setEmail(event.currentTarget.value)}
               autofocus
@@ -310,6 +370,13 @@ export function MembersPage() {
               options={supportedRoles()}
             />
           </Field>
+          <Show when={inviteLink()}>
+            <div class="space-y-2 rounded-lg border border-line bg-canvas-elevated p-3">
+              <p class="text-[12px] font-medium text-ink">Invitation link</p>
+              <p class="break-all font-mono text-[11px] leading-5 text-ink-muted">{inviteLink()}</p>
+              <CopyButton value={inviteLink()!} label="Copy link" />
+            </div>
+          </Show>
           <p class="rounded-lg border border-line bg-canvas-elevated px-3 py-2 text-[11.5px] leading-5 text-ink-muted">
             <span class="font-medium text-ink">Member</span> can use Ballm Code.{" "}
             <span class="font-medium text-ink">Admin</span> can manage this org.{" "}

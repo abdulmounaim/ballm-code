@@ -22,6 +22,12 @@ export function DeviceApproval(props: { initialCode?: string }) {
     api<DeviceState>(`/api/console/device${code() ? `?user_code=${encodeURIComponent(code())}` : ""}`),
   )
 
+  const [config] = createResource(async () => {
+    const response = await fetch("/auth/config", { headers: { accept: "application/json" }, cache: "no-store" })
+    if (!response.ok) return { password: { enabled: false }, signup: false, sso: true }
+    return (await response.json()) as { password: { enabled: boolean }; signup: boolean; sso: boolean }
+  })
+
   const start = async (event: SubmitEvent) => {
     event.preventDefault()
     if (!code()) {
@@ -116,7 +122,7 @@ export function DeviceApproval(props: { initialCode?: string }) {
                 <Field
                   label="Work email"
                   for="device-email"
-                  hint="We route you to the SSO connection for your domain."
+                  hint="SSO finds your organization by domain. Password accounts work too."
                 >
                   <TextInput
                     id="device-email"
@@ -131,6 +137,41 @@ export function DeviceApproval(props: { initialCode?: string }) {
                   Continue with SSO
                   <Icon name="arrow-right" class="size-4" />
                 </Button>
+
+                <Show when={config()?.password.enabled}>
+                  <div class="flex items-center gap-3 pt-1 text-[11px] uppercase tracking-[0.14em] text-ink-subtle">
+                    <span class="h-px flex-1 bg-line" />
+                    or
+                    <span class="h-px flex-1 bg-line" />
+                  </div>
+                  <a
+                    href={`/auth/password/login?user_code=${encodeURIComponent(code())}`}
+                    onClick={(event) => {
+                      if (!code()) {
+                        event.preventDefault()
+                        setError("Enter the code shown in your terminal first")
+                      }
+                    }}
+                    class="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-line bg-surface px-4 text-sm font-medium text-ink transition hover:bg-surface-hover"
+                  >
+                    <Icon name="mail" class="size-4" />
+                    Continue with email and password
+                  </a>
+                  <Show when={config()?.signup}>
+                    <a
+                      href={`/auth/password/register?user_code=${encodeURIComponent(code())}`}
+                      onClick={(event) => {
+                        if (!code()) {
+                          event.preventDefault()
+                          setError("Enter the code shown in your terminal first")
+                        }
+                      }}
+                      class="block text-center text-[12px] font-medium text-accent hover:underline"
+                    >
+                      Create an account for this device
+                    </a>
+                  </Show>
+                </Show>
               </form>
             }
           >

@@ -23,6 +23,12 @@ const optionalString = z
   .optional()
   .transform((value) => (value === undefined || value.trim() === "" ? undefined : value.trim()))
 
+const flag = (fallback: boolean) =>
+  z
+    .union([z.literal("1"), z.literal("true"), z.literal("0"), z.literal("false")])
+    .optional()
+    .transform((value) => (value === undefined ? fallback : value === "1" || value === "true"))
+
 const baseSchema = z.object({
   BALLM_ENV: z.enum(["development", "test", "production"]).default("development"),
   BALLM_REGION: z.string().default("local"),
@@ -63,11 +69,22 @@ const baseSchema = z.object({
   BALLM_GATEWAY_CONNECT_TIMEOUT_MS: integer(15_000),
   BALLM_GATEWAY_RATE_LIMIT_PER_MINUTE: integer(240),
   BALLM_AUTH_RATE_LIMIT_PER_MINUTE: integer(30),
+  /** Ory Kratos public API used by the login proxy and session verification. */
+  BALLM_KRATOS_PUBLIC_URL: optionalString,
+  /** Ory Kratos admin API, used to revoke identities without a browser session. */
+  BALLM_KRATOS_ADMIN_URL: optionalString,
+  /** Public sign-up. Team invitations and sign-in keep working when this is off. */
+  BALLM_SIGNUP_ENABLED: flag(true),
+  /** `smtp://` or `smtps://` URL used for invitation mail. */
+  BALLM_SMTP_URL: optionalString,
+  BALLM_MAIL_FROM: z.string().default("Ballm Code <noreply@baytai.io>"),
 })
 
 export type BaseEnv = z.infer<typeof baseSchema> & {
   readonly jwtIssuer: string
   readonly migrateOnStart: boolean
+  /** Password identity is available when Kratos is configured. */
+  readonly identityEnabled: boolean
 }
 
 export interface ControlPlaneEnv extends BaseEnv {
@@ -98,6 +115,7 @@ export function loadBaseEnv(): BaseEnv {
       parsed.BALLM_MIGRATE_ON_START === undefined
         ? parsed.BALLM_ENV === "development"
         : parsed.BALLM_MIGRATE_ON_START === "1",
+    identityEnabled: Boolean(parsed.BALLM_KRATOS_PUBLIC_URL),
   }
 }
 

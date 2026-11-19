@@ -12,6 +12,7 @@ import {
   createOidcState,
   createSession,
   ensureMembership,
+  ensurePersonalOrg,
   findOrCreateUser,
   orgById,
   orgBySlug,
@@ -80,6 +81,11 @@ export function ssoRoutes(deps: Deps) {
       email: claims.email!,
       name: typeof claims.name === "string" ? claims.name : undefined,
     })
+    await deps.db.write`
+      UPDATE users SET email_verified_at = coalesce(email_verified_at, now())
+      WHERE id = ${user.id}
+    `
+    await ensurePersonalOrg(deps.db.write, { userId: user.id, email: user.email, name: user.name })
     await ensureMembership(deps.db.write, user.id, org.id, roleForClaims(connection, claims))
 
     if (pending.device_code_hash) {
